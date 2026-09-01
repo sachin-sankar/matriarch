@@ -1,99 +1,113 @@
+import sys
 import threading
-import tkinter as tk
 
-import customtkinter as ctk
-
-# Import the standalone File Manager application
-from app import FileManagerApp
 from flask import Flask, jsonify
+from PySide6.QtCore import QObject, Qt, QThread, Signal, Slot
+from PySide6.QtGui import QGuiApplication
+from PySide6.QtQml import QQmlApplicationEngine
+
+
+def safe_json_value(val):
+    """Converts PySide/Qt data types to strict JSON-compliant primitives."""
+    if val is None:
+        return None
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, (int, float)):
+        # Handle non-finite JSON values (Infinity / NaN)
+        if math.isinf(val) or math.isnan(val):
+            return str(val)
+        return val
+    if isinstance(val, (str, list, dict)):
+        return val
+
+    # Fallback for complex Qt objects (QRectF, QFont, QColor, QJSValue)
+    return str(val)
 
 
 # ---------------------------------------------------------
-# 1. Widget Serialization Engine
+# 1. Main-Thread QML Inspector Helper
 # ---------------------------------------------------------
-def serialize_widget(widget: tk.Widget) -> dict:
-    """Recursively walks the Tkinter tree and extracts layout, props, and live control values."""
+class QMLInspector(QObject):
+    """Bridge object that safely runs tree inspection on the main GUI thread."""
 
-    # Static Configuration Attributes
-    props = {}
-    for key in widget.keys():
+    # Signal sent from Flask thread to request layout
+    request_layout = Signal()
+
+    def __init__(self, engine):
+        super().__init__()
+        self.engine = engine
+        self._result = None
+        self._event = threading.Event()
+
+        # Connect signal so handler runs on the thread where this object lives (Main Thread)
+        self.request_layout.connect(self._do_serialize)
+
+    @Slot()
+    def _do_serialize(self):
+        """Executed EXCLUSIVELY on the Qt Main Thread."""
         try:
-            val = str(widget.cget(key))
-            props[key] = val
-        except Exception:
-            pass
-
-    # Dynamic Runtime Control Values
-    dynamic_state = {}
-
-    if isinstance(widget, (ctk.CTkEntry, ctk.CTkTextbox, tk.Entry)):
-        try:
-            if isinstance(widget, ctk.CTkTextbox):
-                dynamic_state["value"] = widget.get("1.0", "end-1c")
+            if not self.engine.rootObjects():
+                self._result = {"error": "QML Engine root object not found"}
             else:
-                dynamic_state["value"] = widget.get()
-        except Exception:
-            pass
+                root_window = self.engine.rootObjects()[0]
+                self._result = self._serialize_qml_item(root_window)
+        except Exception as e:
+            self._result = {"error": str(e)}
+        finally:
+            self._event.set()  # Notify Flask thread that data is ready
 
-    elif isinstance(widget, (ctk.CTkCheckBox, ctk.CTkSwitch, tk.Checkbutton)):
-        try:
-            dynamic_state["value"] = widget.get()
-            dynamic_state["is_checked"] = bool(widget.get())
-        except Exception:
-            pass
+    def _serialize_qml_item(self, item: QObject) -> dict:
+        meta = item.metaObject()
+        properties = {}
 
-    elif isinstance(widget, (ctk.CTkSlider, ctk.CTkProgressBar, tk.Scale)):
-        try:
-            dynamic_state["value"] = widget.get()
-        except Exception:
-            pass
+        for i in range(meta.propertyCount()):
+            prop = meta.property(i)
+            name = prop.name()
+            try:
+                raw_val = item.property(name)
+                properties[name] = safe_json_value(raw_val)
+            except Exception:
+                pass
 
-    elif isinstance(widget, (ctk.CTkOptionMenu, ctk.CTkComboBox, tk.OptionMenu)):
-        try:
-            dynamic_state["value"] = widget.get()
-        except Exception:
-            pass
+        return {
+            "id": item.objectName() or str(item),
+            "class": meta.className(),
+            "properties": properties,
+            "children": [
+                self._serialize_qml_item(child)
+                for child in item.children()
+                if hasattr(child, "metaObject")
+            ],
+        }
 
-    # Geometry Layout Specs
-    geo_manager = widget.winfo_manager()
-    layout_info = {}
-    if geo_manager == "pack":
-        layout_info = widget.pack_info()
-    elif geo_manager == "grid":
-        layout_info = widget.grid_info()
-    elif geo_manager == "place":
-        layout_info = widget.place_info()
+    def get_layout_safe(self, timeout=3.0):
+        """Called by Flask thread to wait for main thread execution."""
+        self._event.clear()
+        self.request_layout.emit()
 
-    return {
-        "id": str(widget),
-        "class": widget.winfo_class(),
-        "geometry": {
-            "manager": geo_manager,
-            "width": widget.winfo_width(),
-            "height": widget.winfo_height(),
-            "x": widget.winfo_x(),
-            "y": widget.winfo_y(),
-            "params": {k: str(v) for k, v in layout_info.items()},
-        },
-        "props": props,
-        "state": dynamic_state,
-        "children": [serialize_widget(child) for child in widget.winfo_children()],
-    }
+        # Wait until Qt main thread finishes serialization
+        success = self._event.wait(timeout=timeout)
+        if not success:
+            return {"error": "Qt Main Thread inspection timed out"}
+        return self._result
 
 
 # ---------------------------------------------------------
-# 2. REST API Setup
+# 2. REST API Engine
 # ---------------------------------------------------------
 server = Flask(__name__)
-app_instance = None  # Holds the global GUI reference
+inspector = None
 
 
 @server.route("/layout", methods=["GET"])
 def get_layout():
-    if app_instance is None:
-        return jsonify({"error": "Application not initialized"}), 500
+    if inspector is None:
+        return jsonify({"error": "Inspector not initialized"}), 500
 
-    return jsonify(serialize_widget(app_instance))
+    # Safely query Qt thread from Flask worker thread
+    data = inspector.get_layout_safe()
+    return jsonify(data)
 
 
 def run_api():
@@ -104,12 +118,24 @@ def run_api():
 # 3. Application Execution
 # ---------------------------------------------------------
 if __name__ == "__main__":
-    # 1. Start Flask in a background daemon thread
+    import os
+
+    # Use Basic or Material style instead of Fusion
+    os.environ["QT_QUICK_CONTROLS_STYLE"] = "Material"
+    # Start Flask API in background thread
     api_thread = threading.Thread(target=run_api, daemon=True)
     api_thread.start()
-    print("API Server active at http://localhost:8080/layout")
 
-    # 2. Instantiate and launch the GUI application on the main thread
-    ctk.set_appearance_mode("Dark")
-    app_instance = FileManagerApp()
-    app_instance.mainloop()
+    # Qt Main Application setup
+    app = QGuiApplication(sys.argv)
+    engine = QQmlApplicationEngine()
+    engine.load("main.qml")  # Ensure correct path to main.qml
+
+    if not engine.rootObjects():
+        sys.exit(-1)
+
+    # Initialize inspector on the MAIN THREAD
+    inspector = QMLInspector(engine)
+
+    # Start Main Qt Loop
+    sys.exit(app.exec())
