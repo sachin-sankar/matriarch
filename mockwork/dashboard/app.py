@@ -29,22 +29,6 @@ def get_layout():
         return {"error": str(e)}
 
 
-def flatten_interactors(node, depth=0):
-    """Recursively flatten interactors tree into list."""
-    items = []
-    if node is None:
-        return items
-    if isinstance(node, list):
-        for child in node:
-            items.extend(flatten_interactors(child, depth))
-    elif isinstance(node, dict):
-        if "cuid" in node and "role" in node:
-            items.append(node)
-        for child in node.get("children", []):
-            items.extend(flatten_interactors(child, depth + 1))
-    return items
-
-
 def perform_action(cuid, action, value=None):
     """Perform an action on a component."""
     try:
@@ -59,86 +43,51 @@ def perform_action(cuid, action, value=None):
         return f"❌ Error: {e}"
 
 
-# Global state
-_current_data = {}
-_interactor_components = []
-
-
 def refresh():
     """Refresh the dashboard by fetching new layout."""
-    global _current_data
-    _current_data = get_layout()
+    data = get_layout()
 
-    if "error" in _current_data:
-        return (
-            f"❌ Error: {_current_data['error']}",
-            json.dumps(_current_data, indent=2),
-            [],
-        )
+    if "error" in data:
+        return f"❌ Error: {data['error']}", json.dumps(data, indent=2)
 
-    title = _current_data.get("app_state", {}).get("title", "QML App")
-    interactors = flatten_interactors(_current_data.get("interactors"))
+    title = data.get("app_state", {}).get("title", "QML App")
+    interactors = data.get("interactors", {})
 
-    # Build component rows
-    rows = []
-    for item in interactors:
-        cuid = item.get("cuid", "")
-        role = item.get("role", "")
-        label = item.get("label", item.get("id", "unknown"))
-        value = item.get("value", "")
-        focus = item.get("focus", False)
-        actions = ACTION_MAP.get(role, [])
+    # Format interactors as markdown table
+    lines = [f"## Interactors in **{title}**\n"]
+    lines.append("| ID | CUID | Role | Label | Value | Focus | Actions |")
+    lines.append("|---|---|---|---|---|---|---|")
 
-        # Distinct styling for focused items
-        if focus:
-            html_content = f"""
-            <div style="background: #FFF3CD; border: 2px solid #FFC107; padding: 10px; border-radius: 8px; margin: 5px 0;">
-                <strong>{label}</strong><br>
-                <small>
-                    ID: <code>{item.get("id", "")}</code> |
-                    CUID: <code>{cuid}</code> |
-                    Role: <code>{role}</code> |
-                    Value: <code>{value or "(empty)"}</code>
-                    <span style="color: #FFC107; font-weight: bold;"> ⭐ FOCUSED</span>
-                </small>
-            </div>
-            """
-        else:
-            html_content = f"""
-            <div style="background: #F8F9FA; border: 1px solid #DEE2E6; padding: 10px; border-radius: 8px; margin: 5px 0;">
-                <strong>{label}</strong><br>
-                <small>
-                    ID: <code>{item.get("id", "")}</code> |
-                    CUID: <code>{cuid}</code> |
-                    Role: <code>{role}</code> |
-                    Value: <code>{value or "(empty)"}</code>
-                </small>
-            </div>
-            """
-
-        # Create action buttons
-        with gr.Row():
-            gr.HTML(html_content)
-            action_btns = []
-            for action in actions:
-                btn = gr.Button(
-                    f"{action.capitalize()}", variant="secondary", size="sm"
+    def walk(node, depth=0):
+        if node is None:
+            return
+        if isinstance(node, list):
+            for child in node:
+                walk(child, depth)
+        elif isinstance(node, dict):
+            if "cuid" in node and "role" in node:
+                cuid = node.get("cuid", "")
+                role = node.get("role", "")
+                label = node.get("label", node.get("id", "unknown"))
+                value = node.get("value", "")
+                focus = "⭐" if node.get("focus") else ""
+                actions = " ".join([f"[{a}]" for a in ACTION_MAP.get(role, [])])
+                lines.append(
+                    f"| {node.get('id', '')} | {cuid} | {role} | {label} | {value or '-'} | {focus} | {actions} |"
                 )
-                btn.click(
-                    fn=lambda c=cuid, a=action: perform_action(c, a),
-                    outputs=[status_output],
-                )
-                action_btns.append(btn)
-            _interactor_components.extend(action_btns)
+            for child in node.get("children", []):
+                walk(child, depth + 1)
 
-        rows.append(None)  # Placeholder
+    walk(interactors)
+    lines.append("")
+    lines.append("**Click action buttons below to interact with components.**")
 
-    return title, json.dumps(_current_data, indent=2, default=str), rows
+    return title, "\n".join(lines)
 
 
-def clear_interactors():
-    """Clear interactors container."""
-    return []
+def do_action(cuid, action):
+    """Handle action button click."""
+    return perform_action(cuid, action)
 
 
 with gr.Blocks(title="QML Inspector Dashboard") as demo:
@@ -150,17 +99,40 @@ with gr.Blocks(title="QML Inspector Dashboard") as demo:
         status_output = gr.Textbox(label="Status", interactive=False)
 
     title_output = gr.Markdown()
-    raw_output = gr.JSON(label="Raw API Response")
-
-    with gr.Column() as interactors_container:
-        gr.Markdown("## Interactors")
+    info_output = gr.Markdown()
 
     refresh_btn.click(
-        fn=refresh, outputs=[title_output, raw_output, interactors_container]
+        fn=refresh,
+        outputs=[title_output, info_output],
     )
 
     # Initial render
-    demo.load(fn=refresh, outputs=[title_output, raw_output, interactors_container])
+    demo.load(fn=refresh, outputs=[title_output, info_output])
+
+    gr.HTML("""
+    <div style="margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 8px;">
+        <h3>Quick Actions</h3>
+        <p>Use the CUID from the table above to perform actions:</p>
+    </div>
+    """)
+
+    with gr.Row():
+        cuid_input = gr.Textbox(label="CUID", placeholder="Enter component CUID")
+        action_select = gr.Dropdown(
+            choices=["fill", "click", "toggle", "select", "focus", "clear"],
+            label="Action",
+            value="fill",
+        )
+        value_input = gr.Textbox(label="Value", placeholder="For fill/select actions")
+        action_btn = gr.Button("Execute", variant="primary")
+
+    action_output = gr.Textbox(label="Result", interactive=False)
+
+    action_btn.click(
+        fn=lambda cuid, action, value: do_action(cuid, action, value),
+        inputs=[cuid_input, action_select, value_input],
+        outputs=[action_output],
+    )
 
 
 if __name__ == "__main__":
