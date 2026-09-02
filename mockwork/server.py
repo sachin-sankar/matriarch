@@ -86,7 +86,7 @@ def get_layout():
     return jsonify(
         {
             "app_state": {
-                "title": "QML File Manager",
+                "title": props.get("title", "QML App"),
                 "dimensions": {"width": app_width, "height": app_height},
             },
             "interactors": interactors,
