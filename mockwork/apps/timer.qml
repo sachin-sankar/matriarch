@@ -18,13 +18,17 @@ ApplicationWindow {
     property int remainingSeconds: 0
     property bool isRunning: false
     property bool isPaused: false
+    // Derived: true only when the countdown is actually advancing.
+    // isRunning stays true while paused, so anything that means
+    // "actively counting down" must check this instead of isRunning alone.
+    readonly property bool isTicking: isRunning && !isPaused
 
     // Core timer logic
     Timer {
         id: timer
         interval: 1000
         repeat: true
-        running: root.isRunning && !root.isPaused
+        running: root.isTicking
 
         onTriggered: {
             if (root.remainingSeconds > 0) {
@@ -37,21 +41,22 @@ ApplicationWindow {
         }
     }
 
-    // Format seconds to MM:SS or HH:MM:SS
+    // Format seconds to MM:SS or HH:MM:SS.
+    // Pure integer math, no Date/epoch involved - avoids both the
+    // unit-mixing bug and timezone-dependent formatting.
     function formatTime(totalSeconds) {
         var hours = Math.floor(totalSeconds / 3600)
         var minutes = Math.floor((totalSeconds % 3600) / 60)
         var seconds = totalSeconds % 60
-        if (hours > 0) {
-            return Qt.formatTime(
-                new Date(hours * 3600 + minutes * 60 + seconds * 1000),
-                "hh:mm:ss"
-            )
+
+        function pad(n) {
+            return (n < 10 ? "0" : "") + n
         }
-        return Qt.formatTime(
-            new Date(minutes * 60 + seconds * 1000),
-            "mm:ss"
-        )
+
+        if (hours > 0) {
+            return pad(hours) + ":" + pad(minutes) + ":" + pad(seconds)
+        }
+        return pad(minutes) + ":" + pad(seconds)
     }
 
     ColumnLayout {
@@ -67,7 +72,7 @@ ApplicationWindow {
             font.bold: true
             font.family: "Monospace"
             Layout.alignment: Qt.AlignHCenter
-            color: root.isRunning ? "#4ade80"
+            color: root.isTicking ? "#4ade80"
                                   : root.isPaused ? "#fbbf24"
                                   : root.remainingSeconds > 0 ? "#ffffff"
                                   : "#6b7280"
@@ -134,21 +139,26 @@ ApplicationWindow {
 
             Button {
                 id: startPauseBtn
-                text: root.isRunning ? "Pause"
-                                   : root.remainingSeconds > 0 ? "Start"
-                                   : "Start"
+                text: root.isTicking ? "Pause"
+                                     : root.isPaused ? "Resume"
+                                     : "Start"
                 highlighted: true
                 Layout.fillWidth: true
                 enabled: root.remainingSeconds > 0 || root.isPaused
 
                 onClicked: {
-                    if (root.isRunning) {
+                    if (root.isTicking) {
+                        // Actively counting down -> pause it.
                         root.isPaused = true
                     } else if (root.isPaused) {
+                        // Paused -> resume (this branch was previously
+                        // unreachable, since isRunning stayed true and
+                        // the check above always caught it first).
                         root.isPaused = false
-                        root.isRunning = true
                     } else {
+                        // Fresh start.
                         root.isRunning = true
+                        root.isPaused = false
                     }
                 }
             }
@@ -156,7 +166,9 @@ ApplicationWindow {
             Button {
                 text: "Reset"
                 Layout.fillWidth: true
-                enabled: root.remainingSeconds > 0 && !root.isRunning
+                // Allow resetting a paused timer too, not just a fully
+                // stopped one.
+                enabled: root.remainingSeconds > 0 && !root.isTicking
 
                 onClicked: {
                     root.remainingSeconds = 0
