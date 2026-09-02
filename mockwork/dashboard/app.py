@@ -66,7 +66,7 @@ _interactor_components = []
 
 def refresh():
     """Refresh the dashboard by fetching new layout."""
-    global _current_data, _interactor_components
+    global _current_data
     _current_data = get_layout()
 
     if "error" in _current_data:
