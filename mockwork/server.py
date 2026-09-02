@@ -27,6 +27,7 @@ inspector = None
 ROLE_MAP = {
     "TextField": "text_input",
     "TextArea": "text_area",
+    "QQuickText": "text",
     "Text": "text",
     "Button": "button",
     "CheckBox": "checkbox",
