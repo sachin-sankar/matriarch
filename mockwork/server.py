@@ -7,8 +7,10 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 
 
+import math
+
+
 def safe_json_value(val):
-    """Converts PySide/Qt data types to strict JSON-compliant primitives."""
     if val is None:
         return None
     if isinstance(val, bool):
@@ -59,6 +61,7 @@ class QMLInspector(QObject):
 
     def _serialize_qml_item(self, item: QObject) -> dict:
         meta = item.metaObject()
+        class_name = meta.className()
         properties = {}
 
         for i in range(meta.propertyCount()):
@@ -70,10 +73,38 @@ class QMLInspector(QObject):
             except Exception:
                 pass
 
+        # Define which QML classes map to which semantic roles
+        role_map = {
+            "TextField": "text_input",
+            "TextArea": "text_area",
+            "Button": "button",
+            "CheckBox": "checkbox",
+            "Switch": "switch",
+            "ComboBox": "dropdown",
+        }
+
+        role = next((v for k, v in role_map.items() if class_name.startswith(k)), None)
+
+        # Extract geometry for interactors
+        coords = None
+        if role:
+            # Try to get x, y, width, height properties if they exist
+            try:
+                coords = {
+                    "x": properties.get("x", 0),
+                    "y": properties.get("y", 0),
+                    "w": properties.get("width", 0),
+                    "h": properties.get("height", 0),
+                }
+            except Exception:
+                pass
+
         return {
             "id": item.objectName() or str(item),
-            "class": meta.className(),
+            "class": class_name,
+            "role": role,
             "properties": properties,
+            "coordinates": coords,
             "children": [
                 self._serialize_qml_item(child)
                 for child in item.children()
@@ -105,9 +136,45 @@ def get_layout():
     if inspector is None:
         return jsonify({"error": "Inspector not initialized"}), 500
 
-    # Safely query Qt thread from Flask worker thread
-    data = inspector.get_layout_safe()
-    return jsonify(data)
+    full_tree = inspector.get_layout_safe()
+    if "error" in full_tree:
+        return jsonify(full_tree), 500
+
+    # Flatten tree into the semantic interaction map
+    interactors = []
+
+    def flatten(node):
+        if node.get("role"):
+            # Extract human-readable label if available
+            label = node["properties"].get("text", node["id"])
+            # Get current value
+            val = node["properties"].get("text") or node["properties"].get("checked")
+
+            interactors.append(
+                {
+                    "id": node["id"],
+                    "role": node["role"],
+                    "label": label,
+                    "value": val,
+                    "coordinates": node["coordinates"],
+                    "accessible_name": node["id"],
+                }
+            )
+
+        for child in node.get("children", []):
+            flatten(child)
+
+    flatten(full_tree)
+
+    return jsonify(
+        {
+            "app_state": {
+                "title": "QML File Manager",
+                "dimensions": {"width": 900, "height": 550},
+            },
+            "interactors": interactors,
+        }
+    )
 
 
 def run_api():
