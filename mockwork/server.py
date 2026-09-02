@@ -2,12 +2,21 @@ import argparse
 import sys
 import os
 import threading
-from flask import Flask, jsonify, request
+from enum import Enum
+from typing import Optional
+
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 from lib.inspector import QMLInspector
 
-server = Flask(__name__)
+app = FastAPI(
+    title="QML Inspector API",
+    description="REST API for inspecting and interacting with QML applications",
+    version="1.0.0",
+)
 inspector = None
 
 ROLE_MAP = {
@@ -29,14 +38,52 @@ ACTION_MAP = {
 }
 
 
-@server.route("/layout", methods=["GET"])
+class InteractionAction(str, Enum):
+    """Valid interaction actions."""
+
+    FILL = "fill"
+    CLICK = "click"
+    TOGGLE = "toggle"
+    SELECT = "select"
+    FOCUS = "focus"
+    CLEAR = "clear"
+
+
+class InteractRequest(BaseModel):
+    """Request body for the /interact endpoint."""
+
+    cuid: str = Field(..., description="Component unique identifier from /layout")
+    action: InteractionAction = Field(
+        ..., description="Action to perform on the component"
+    )
+    value: Optional[str] = Field(None, description="Value for fill/select actions")
+
+
+class InteractResponse(BaseModel):
+    """Response body for successful interactions."""
+
+    success: bool
+    action: str
+    cuid: str
+
+
+class ErrorResponse(BaseModel):
+    """Error response model."""
+
+    detail: str
+
+
+@app.get(
+    "/layout",
+    response_description="Returns the QML application UI tree with component metadata",
+)
 def get_layout():
     if inspector is None:
-        return jsonify({"error": "Inspector not initialized"}), 500
+        raise HTTPException(status_code=500, detail="Inspector not initialized")
 
     full_tree = inspector.get_layout_safe()
     if "error" in full_tree:
-        return jsonify(full_tree), 500
+        raise HTTPException(status_code=500, detail=full_tree["error"])
 
     def process_node(node):
         children = [
@@ -48,7 +95,7 @@ def get_layout():
         role = node.get("role")
         if role:
             label = node["properties"].get("text", node["id"])
-            if role == "checkbox" or role == "switch":
+            if role in ("checkbox", "switch"):
                 val = node["properties"].get("checked")
             else:
                 val = node["properties"].get("text")
@@ -68,7 +115,6 @@ def get_layout():
         return {"id": node["id"], "children": children} if children else None
 
     processed_tree = process_node(full_tree)
-    interactors = processed_tree
 
     props = full_tree.get("properties", {})
     app_width = props.get("width") or 900
@@ -87,51 +133,65 @@ def get_layout():
 
         find_root_dims(full_tree)
 
-    return jsonify(
-        {
-            "app_state": {
-                "title": props.get("title", "QML App"),
-                "dimensions": {"width": app_width, "height": app_height},
-            },
-            "interactors": interactors,
-        }
-    )
+    return {
+        "app_state": {
+            "title": props.get("title", "QML App"),
+            "dimensions": {"width": app_width, "height": app_height},
+        },
+        "interactors": processed_tree,
+    }
 
 
-@server.route("/interact", methods=["POST"])
-def interact():
+@app.post(
+    "/interact",
+    response_model=InteractResponse,
+    responses={
+        400: {
+            "model": ErrorResponse,
+            "description": "Invalid action for role or missing fields",
+        },
+        404: {"model": ErrorResponse, "description": "CUID not found"},
+        500: {
+            "model": ErrorResponse,
+            "description": "Inspector not initialized or action failed",
+        },
+    },
+    summary="Interact with a QML component",
+    description="Perform an action on a QML component identified by its CUID",
+)
+def interact(req: InteractRequest):
     if inspector is None:
-        return jsonify({"error": "Inspector not initialized"}), 500
+        raise HTTPException(status_code=500, detail="Inspector not initialized")
 
-    data = request.get_json()
-    if not data or "cuid" not in data or "action" not in data:
-        return jsonify({"error": "Required fields: cuid, action"}), 400
-
-    cuid = data["cuid"]
-    action = data["action"]
-    value = data.get("value")
-
-    obj = inspector.find_by_cuid(cuid)
+    obj = inspector.find_by_cuid(req.cuid)
     if obj is None:
-        return jsonify({"error": f"CUID '{cuid}' not found"}), 404
+        raise HTTPException(status_code=404, detail=f"CUID '{req.cuid}' not found")
 
     class_name = obj.metaObject().className()
     role = next((v for k, v in ROLE_MAP.items() if class_name.startswith(k)), None)
 
     valid_actions = ACTION_MAP.get(role, [])
-    if action not in valid_actions:
-        return jsonify(
-            {"error": f"Action '{action}' not supported for role '{role}'"}
-        ), 400
+    if req.action not in valid_actions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Action '{req.action}' not supported for role '{role}'",
+        )
 
-    result = inspector.perform_action_safe(obj, action, value)
+    result = inspector.perform_action_safe(obj, req.action, req.value)
     if "error" in result:
-        return jsonify(result), 400
-    return jsonify(result), 200
+        raise HTTPException(status_code=500, detail=result["error"])
+
+    return InteractResponse(
+        success=result["success"],
+        action=result["action"],
+        cuid=result["cuid"],
+    )
 
 
 def run_api():
-    server.run(host="0.0.0.0", port=8080, debug=False, use_reloader=False)
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8080, log_level="info")
 
 
 if __name__ == "__main__":
