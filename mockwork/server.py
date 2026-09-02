@@ -5,11 +5,12 @@ import threading
 from enum import Enum
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi_mcp import FastApiMCP
 from lib.inspector import QMLInspector
 from pydantic import BaseModel, Field
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
-from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
     title="QML Inspector API",
@@ -22,6 +23,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+mcp = FastApiMCP(app, describe_all_responses=True)
+
 inspector = None
 
 ROLE_MAP = {
@@ -215,6 +219,10 @@ def interact(req: InteractRequest):
         action=result["action"],
         cuid=result["cuid"],
     )
+
+
+mcp.mount()
+mcp.setup_server()
 
 
 def run_api():
