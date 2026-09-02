@@ -125,6 +125,7 @@ class QMLInspector(QObject):
         role_map = {
             "TextField": "text_input",
             "TextArea": "text_area",
+            "Text": "text",
             "Button": "button",
             "CheckBox": "checkbox",
             "Switch": "switch",

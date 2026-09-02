@@ -27,6 +27,7 @@ inspector = None
 ROLE_MAP = {
     "TextField": "text_input",
     "TextArea": "text_area",
+    "Text": "text",
     "Button": "button",
     "CheckBox": "checkbox",
     "Switch": "switch",
@@ -36,6 +37,7 @@ ROLE_MAP = {
 ACTION_MAP = {
     "text_input": ["fill", "focus", "clear"],
     "text_area": ["fill", "focus", "clear"],
+    "text": ["focus"],
     "button": ["click"],
     "checkbox": ["click", "toggle"],
     "switch": ["click", "toggle"],
@@ -119,7 +121,9 @@ def get_layout():
             ):
                 return {"id": node["id"], "children": children} if children else None
             label = node["properties"].get("text", node["id"])
-            if role in ("checkbox", "switch"):
+            if role == "text":
+                val = node["properties"].get("text")
+            elif role in ("checkbox", "switch"):
                 val = node["properties"].get("checked")
             else:
                 val = node["properties"].get("text")
