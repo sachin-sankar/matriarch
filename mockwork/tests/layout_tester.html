@@ -345,16 +345,35 @@ function renderCanvas(data) {
   const W = rect.width;
   const H = 400;
   const dims = data?.app_state?.dimensions || { width: 1920, height: 1050 };
-  const scaleX = W / dims.width;
-  const scaleY = H / dims.height;
+  const pad = 20;
+  const availW = W - pad * 2;
+  const availH = H - pad * 2;
+  const scaleX = availW / dims.width;
+  const scaleY = availH / dims.height;
   const scale = Math.min(scaleX, scaleY);
+  const frameW = dims.width * scale;
+  const frameH = dims.height * scale;
+  const ox = (W - frameW) / 2;
+  const oy = (H - frameH) / 2;
 
   ctx.clearRect(0, 0, W, H);
 
-  // Draw app window outline
+  // Draw app window frame
+  ctx.strokeStyle = '#6c8cff';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(ox, oy, frameW, frameH);
+
+  // Title bar
+  ctx.fillStyle = '#1a1d27';
+  ctx.fillRect(ox, oy, frameW, 18);
   ctx.strokeStyle = '#2e3345';
   ctx.lineWidth = 1;
-  ctx.strokeRect(0, 0, W, H);
+  ctx.strokeRect(ox, oy, frameW, 18);
+  ctx.fillStyle = '#8b8fa3';
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(dims.title || 'QML App', ox + frameW / 2, oy + 12);
+  ctx.textAlign = 'start';
 
   const ROLE_COLORS = {
     text_input: '#5dade2',
@@ -375,19 +394,8 @@ function renderCanvas(data) {
       const h = (c.h || 0) * scale;
       const color = ROLE_COLORS[node.role] || '#8b8fa3';
 
-      ctx.fillStyle = color + '30';
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1.5;
-      ctx.fillRect(x, y, w, h);
-      ctx.strokeRect(x, y, w, h);
-
-      // Label if wide enough
-      if (w > 30) {
-        ctx.fillStyle = color;
-        ctx.font = '10px monospace';
-        const label = node.id || node.cuid?.slice(0, 6) || '';
-        ctx.fillText(label, x + 4, y + 12);
-      }
+      ctx.fillRect(x + ox, y + oy, w, h);
+      ctx.strokeRect(x + ox, y + oy, w, h);
     }
     for (const child of (node.children || [])) {
       drawNode(child);
