@@ -1,8 +1,10 @@
 import math
 import re
 import threading
+from typing import Optional
 
 from PySide6.QtCore import QObject, Signal, Slot
+from PySide6.QtQml import QQmlApplicationEngine
 
 
 def safe_json_value(val):
@@ -26,7 +28,7 @@ class QMLInspector(QObject):
     request_layout = Signal()
     perform_action = Signal(QObject, str, object)
 
-    def __init__(self, engine):
+    def __init__(self, engine: QQmlApplicationEngine):
         super().__init__()
         self.engine = engine
         self._result = None
@@ -52,50 +54,78 @@ class QMLInspector(QObject):
     @Slot(QObject, str, object)
     def _do_perform_action(self, obj, action, value):
         try:
-            class_name = obj.metaObject().className()
+            meta = obj.metaObject()
+            class_name = meta.className()
 
-            if action == "fill":
-                if hasattr(obj, "setProperty"):
-                    obj.setProperty("text", value)
-                else:
-                    raise AttributeError(f"No setProperty on {class_name}")
-            elif action == "click":
-                if hasattr(obj, "click"):
-                    obj.click()
-                elif class_name.startswith(("CheckBox", "Switch")) and hasattr(
-                    obj, "toggle"
-                ):
-                    obj.toggle()
-                else:
-                    raise AttributeError(f"No click/toggle on {class_name}")
-            elif action == "toggle":
-                if hasattr(obj, "setChecked"):
-                    obj.setChecked(bool(value))
-                elif hasattr(obj, "toggle"):
-                    obj.toggle()
-                else:
-                    raise AttributeError(f"No setChecked/toggle on {class_name}")
-            elif action == "select":
-                if hasattr(obj, "setCurrentIndex"):
-                    obj.setCurrentIndex(int(value))
-                else:
-                    raise AttributeError(f"No setCurrentIndex on {class_name}")
-            elif action == "focus":
-                if hasattr(obj, "setFocus"):
-                    obj.setFocus()
-                else:
-                    raise AttributeError(f"No setFocus on {class_name}")
-            elif action == "clear":
-                if hasattr(obj, "clear"):
-                    obj.clear()
-                else:
-                    raise AttributeError(f"No clear on {class_name}")
-
-            self._result = {"success": True, "action": action, "cuid": obj.objectName()}
+            if class_name.startswith("TextField") and action == "fill":
+                obj.setProperty("text", str(value))
+                self._result = {
+                    "success": True,
+                    "action": "fill",
+                    "cuid": self._get_cuid(obj),
+                }
+            elif class_name.startswith("TextArea") and action == "fill":
+                obj.setProperty("text", str(value))
+                self._result = {
+                    "success": True,
+                    "action": "fill",
+                    "cuid": self._get_cuid(obj),
+                }
+            elif class_name.startswith("Button") and action == "click":
+                obj.click()
+                self._result = {
+                    "success": True,
+                    "action": "click",
+                    "cuid": self._get_cuid(obj),
+                }
+            elif class_name.startswith("CheckBox") and action in ("click", "toggle"):
+                obj.click()
+                self._result = {
+                    "success": True,
+                    "action": action,
+                    "cuid": self._get_cuid(obj),
+                }
+            elif class_name.startswith("Switch") and action in ("click", "toggle"):
+                obj.click()
+                self._result = {
+                    "success": True,
+                    "action": action,
+                    "cuid": self._get_cuid(obj),
+                }
+            elif class_name.startswith("ComboBox") and action == "select":
+                try:
+                    obj.setCurrentIndex(int(value) if value else 0)
+                    self._result = {
+                        "success": True,
+                        "action": "select",
+                        "cuid": self._get_cuid(obj),
+                    }
+                except (ValueError, TypeError) as e:
+                    self._result = {"error": f"Invalid index: {value}"}
+            elif class_name.startswith(("TextField", "TextArea")) and action == "focus":
+                obj.forceActiveFocus()
+                self._result = {
+                    "success": True,
+                    "action": "focus",
+                    "cuid": self._get_cuid(obj),
+                }
+            elif class_name.startswith(("TextField", "TextArea")) and action == "clear":
+                obj.setProperty("text", "")
+                self._result = {
+                    "success": True,
+                    "action": "clear",
+                    "cuid": self._get_cuid(obj),
+                }
+            else:
+                self._result = {"error": f"No handler for {class_name}/{action}"}
         except Exception as e:
             self._result = {"error": str(e)}
         finally:
             self._event.set()
+
+    def _get_cuid(self, obj: QObject) -> str:
+        match = re.search(r"0x[0-9a-fA-F]+", str(obj))
+        return match.group(0) if match else str(id(obj))
 
     def find_by_cuid(self, cuid: str):
         """Find QObject by CUID stored during last layout."""
@@ -177,3 +207,53 @@ class QMLInspector(QObject):
         if not success:
             return {"error": "Qt Main Thread inspection timed out"}
         return self._result
+
+
+class App:
+    """Manages a single QML app instance with its inspector."""
+
+    def __init__(self, name: str, qml_path: str):
+        self.name = name
+        self.qml_path = qml_path
+        self.qt_app: Optional[QObject] = None  # Will be set on main thread
+        self.engine: Optional[QQmlApplicationEngine] = None
+        self.inspector: Optional[QMLInspector] = None
+        self._loaded = threading.Event()
+        self._error: Optional[str] = None
+
+    def load(self) -> bool:
+        """Load the QML app. Must be called from main thread."""
+        try:
+            self.engine = QQmlApplicationEngine()
+            self.engine.load(self.qml_path)
+
+            if not self.engine.rootObjects():
+                self._error = f"Could not load QML file at {self.qml_path}"
+                return False
+
+            self.inspector = QMLInspector(self.engine)
+            self._loaded.set()
+            return True
+        except Exception as e:
+            self._error = str(e)
+            return False
+
+    def get_layout(self, timeout=3.0) -> dict:
+        if not self._loaded.wait(timeout=timeout):
+            return {"error": f"App '{self.name}' not loaded"}
+        if self.inspector is None:
+            return {"error": f"Inspector not initialized for '{self.name}'"}
+        return self.inspector.get_layout_safe(timeout)
+
+    def interact(self, cuid: str, action: str, value=None, timeout=3.0) -> dict:
+        if not self._loaded.wait(timeout=timeout):
+            return {"error": f"App '{self.name}' not loaded"}
+        if self.inspector is None:
+            return {"error": f"Inspector not initialized for '{self.name}'"}
+        obj = self.inspector.find_by_cuid(cuid)
+        if obj is None:
+            return {"error": f"CUID '{cuid}' not found in app '{self.name}'"}
+        return self.inspector.perform_action_safe(obj, action, value, timeout)
+
+    def is_alive(self) -> bool:
+        return self._loaded.is_set() and self.engine is not None

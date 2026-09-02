@@ -20,25 +20,40 @@ ACTION_MAP = {
 }
 
 REPORT = {
-    "title": "",
+    "apps": {},
     "total": 0,
     "success": 0,
     "errors": 0,
-    "results": [],
 }
 
 
-def fetch_layout():
+def fetch_windows():
+    """Fetch list of loaded apps."""
     try:
-        r = requests.get(f"{API}/layout", timeout=5)
+        r = requests.get(f"{API}/windows", timeout=5)
         r.raise_for_status()
         return r.json()
     except requests.RequestException as e:
         return {"_error": str(e)}
 
 
-def post_interact(cuid, action, value=None):
+def fetch_layout(app_name=None):
+    """Fetch layout for a specific app or default."""
+    try:
+        url = f"{API}/layout"
+        if app_name:
+            url += f"?app={app_name}"
+        r = requests.get(url, timeout=5)
+        r.raise_for_status()
+        return r.json()
+    except requests.RequestException as e:
+        return {"_error": str(e)}
+
+
+def post_interact(cuid, action, app_name=None, value=None):
     payload = {"cuid": cuid, "action": action}
+    if app_name:
+        payload["app"] = app_name
     if value is not None:
         payload["value"] = value
     try:
@@ -72,22 +87,25 @@ def collect_interactors(node, out=None):
     return out
 
 
-def prober():
-    data = fetch_layout()
+def probe_app(app_name, windows):
+    """Probe a single app."""
+    data = fetch_layout(app_name)
     if "_error" in data:
-        print(f"Failed to fetch /layout: {data['_error']}")
-        sys.exit(1)
+        print(f"  Failed to fetch /layout for {app_name}: {data['_error']}")
+        return
 
-    REPORT["title"] = data.get("app_state", {}).get("title", "Unknown")
+    title = data.get("app_state", {}).get("title", app_name)
     interactors = collect_interactors(data.get("interactors"))
 
     if not interactors:
-        print("No interactors found.")
-        sys.exit(0)
+        print(f"  No interactors found in {app_name}")
+        return
 
-    print(f"App: {REPORT['title']}")
-    print(f"Interactors: {len(interactors)}")
-    print()
+    print(f"\n  App: {title} ({app_name})")
+    print(f"  Interactors: {len(interactors)}")
+
+    app_results = {"title": title, "interactors": len(interactors), "results": []}
+    REPORT["apps"][app_name] = app_results
 
     for interactor in interactors:
         cuid = interactor["cuid"]
@@ -96,10 +114,10 @@ def prober():
         actions = ACTION_MAP.get(role, [])
 
         if not actions:
-            print(f"[skip] {cuid} ({role}) — no actions mapped")
+            print(f"    [skip] {cuid} ({role}) — no actions mapped")
             continue
 
-        print(f"[{cuid}] {role} — {label}")
+        print(f"    [{cuid}] {role} — {label}")
         for action in actions:
             value = None
             if action == "fill":
@@ -110,7 +128,7 @@ def prober():
                 value = None  # server casts bool(value)
 
             t0 = time.monotonic()
-            result = post_interact(cuid, action, value)
+            result = post_interact(cuid, action, app_name, value)
             dt = (time.monotonic() - t0) * 1000
 
             REPORT["total"] += 1
@@ -123,7 +141,7 @@ def prober():
                 status = f"FAIL ({result.get('status', result.get('error', ''))})"
                 detail = result.get("detail", "")
 
-            REPORT["results"].append(
+            app_results["results"].append(
                 {
                     "cuid": cuid,
                     "role": role,
@@ -136,10 +154,26 @@ def prober():
                 }
             )
             print(
-                f"  {action:6s}  {status:30s}  {dt:.0f}ms{('  ' + detail) if detail else ''}"
+                f"      {action:6s}  {status:30s}  {dt:.0f}ms{('  ' + detail) if detail else ''}"
             )
 
-    print()
+
+def prober():
+    windows = fetch_windows()
+    if "_error" in windows:
+        print(f"Failed to fetch /windows: {windows['_error']}")
+        sys.exit(1)
+
+    if not windows:
+        print("No apps loaded. Start server with: uv run server.py apps/timer.qml")
+        sys.exit(0)
+
+    print(f"Found {len(windows)} app(s): {', '.join(windows.keys())}\n")
+
+    for app_name in windows:
+        probe_app(app_name, windows)
+
+    print(f"\n{'=' * 60}")
     print(
         f"Results: {REPORT['success']}/{REPORT['total']} OK, {REPORT['errors']} errors"
     )

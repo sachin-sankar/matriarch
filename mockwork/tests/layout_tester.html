@@ -40,6 +40,15 @@
       gap: 12px;
       margin-bottom: 20px;
     }
+    .topbar select {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+    }
     .topbar .status {
       font-size: 12px;
       color: var(--text-dim);
@@ -82,121 +91,68 @@
       grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
       gap: 12px;
     }
+
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
+      padding: 12px;
+      transition: border-color 0.15s;
     }
+    .card:hover { border-color: var(--accent); }
     .card-header {
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       gap: 8px;
+      margin-bottom: 8px;
     }
     .card-role {
       font-size: 10px;
       font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      padding: 2px 7px;
+      padding: 2px 8px;
       border-radius: 4px;
-      white-space: nowrap;
-      flex-shrink: 0;
+      text-transform: uppercase;
     }
-    .role-text_input, .role-text_area { background: #1e3a5e; color: #5dade2; }
-    .role-button { background: #3a1e5e; color: #c39bff; }
-    .role-checkbox, .role-switch { background: #1e5e3a; color: #3dd68c; }
-    .role-dropdown { background: #5e3a1e; color: #f5a623; }
-    .card-id {
-      font-family: 'JetBrains Mono', 'Fira Code', monospace;
-      font-size: 12px;
-      color: var(--text);
-      word-break: break-all;
-    }
+    .card-role.text_input, .card-role.text_area { background: #1a3a5c; color: #5dade2; }
+    .card-role.button { background: #3a2d5c; color: #c39bff; }
+    .card-role.checkbox, .card-role.switch { background: #1a3a2a; color: #3dd68c; }
+    .card-role.dropdown { background: #3a2d1a; color: #f5a623; }
+    .card-role.text { background: #2a2a2a; color: #8b8fa3; }
+    .card-id { color: var(--text-dim); font-size: 11px; font-family: monospace; }
     .card-meta {
       display: flex;
-      flex-direction: column;
-      gap: 3px;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 10px;
       font-size: 11px;
-      color: var(--text-dim);
     }
-    .card-meta span { display: flex; gap: 6px; }
-    .card-meta .label { color: var(--text-dim); min-width: 50px; }
-    .card-meta .val { color: var(--text); font-family: monospace; }
+    .card-meta span { display: flex; align-items: center; gap: 4px; }
+    .card-meta .label { color: var(--text-dim); }
+    .card-meta .val { color: var(--text); }
     .card-meta .val.bool-on { color: var(--green); }
-    .card-meta .val.bool-off { color: var(--text-dim); }
-    .card-coords {
-      font-size: 10px;
-      color: var(--text-dim);
-      font-family: monospace;
-    }
-
+    .card-meta .val.bool-off { color: var(--red); }
     .card-actions {
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
-      padding-top: 6px;
-      border-top: 1px solid var(--border);
     }
-    .card-actions button {
-      font-size: 11px;
-      padding: 4px 10px;
-    }
-    .card-actions .action-group {
+    .action-group {
       display: flex;
-      gap: 4px;
       align-items: center;
+      gap: 4px;
     }
-    .card-actions .action-group input {
+    .action-group label { font-size: 11px; color: var(--text-dim); }
+    .action-group input {
       background: var(--surface2);
       border: 1px solid var(--border);
-      color: var(--text);
       border-radius: 4px;
       padding: 4px 8px;
       font-size: 11px;
-      width: 110px;
+      color: var(--text);
+      width: 100px;
     }
-    .card-actions .action-group input:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
-    .card-actions .action-group label {
-      font-size: 10px;
-      color: var(--text-dim);
-      white-space: nowrap;
-    }
+    .action-group button { padding: 4px 10px; font-size: 11px; }
 
-    .toast {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 16px;
-      font-size: 12px;
-      z-index: 100;
-      opacity: 0;
-      transform: translateY(8px);
-      transition: opacity 0.2s, transform 0.2s;
-      max-width: 320px;
-    }
-    .toast.show { opacity: 1; transform: none; }
-    .toast.ok { border-color: var(--green); color: var(--green); }
-    .toast.err { border-color: var(--red); color: var(--red); }
-
-    .empty {
-      color: var(--text-dim);
-      text-align: center;
-      padding: 40px;
-      font-size: 14px;
-    }
-    .tree-root {
-      padding-left: 16px;
-    }
     .tree-node { margin-bottom: 4px; }
     .tree-children { padding-left: 16px; border-left: 1px solid var(--border); }
     .tree-label {
@@ -258,6 +214,31 @@
       height: 8px;
       border-radius: 2px;
     }
+
+    .empty {
+      color: var(--text-dim);
+      padding: 40px;
+      text-align: center;
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+    }
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 20px;
+      font-size: 13px;
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none;
+      z-index: 1000;
+    }
+    .toast.show { opacity: 1; }
+    .toast.ok { border-color: var(--green); color: var(--green); }
+    .toast.err { border-color: var(--red); color: var(--red); }
   </style>
 </head>
 <body>
@@ -265,11 +246,13 @@
   <p class="subtitle">Fetch, inspect, and interact with QML components via <code>/layout</code> and <code>/interact</code></p>
 
   <div class="topbar">
+    <select id="windowSelect" onchange="selectWindow(this.value)">
+      <option value="">Loading…</option>
+    </select>
     <button id="refreshBtn" onclick="fetchLayout()">⟳ Refresh</button>
     <button id="autoRefreshBtn" class="secondary" onclick="toggleAutoRefresh()">⏺ Auto</button>
     <span class="status" id="status">—</span>
   </div>
-
 
   <div class="canvas-wrap">
     <h3>Layout Visualization</h3>
@@ -291,6 +274,33 @@ let currentView = 'cards'; // 'cards' | 'tree'
 let autoRefresh = false;
 let autoRefreshInterval = null;
 const AUTO_REFRESH_MS = 1000;
+let currentApp = '';
+let layoutData = null;
+let windows = {};
+
+async function fetchWindows() {
+  try {
+    const r = await fetch(`${API}/windows`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    windows = await r.json();
+    const sel = document.getElementById('windowSelect');
+    sel.innerHTML = '<option value="">— all apps —</option>';
+    for (const [name, info] of Object.entries(windows)) {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = info.name;
+      sel.appendChild(opt);
+    }
+    if (sel.options.length > 1) sel.selectedIndex = 1;
+  } catch (e) {
+    console.error('Failed to fetch windows:', e);
+  }
+}
+
+function selectWindow(name) {
+  currentApp = name;
+  fetchLayout();
+}
 
 const ROLE_CLASSES = {
   text_input: 'role-text_input',
@@ -317,10 +327,13 @@ async function fetchLayout() {
   status.textContent = 'fetching…';
   status.className = 'status';
   try {
-    const r = await fetch(`${API}/layout`);
+    let url = `${API}/layout`;
+    if (currentApp) url += `?app=${encodeURIComponent(currentApp)}`;
+    const r = await fetch(url);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     layoutData = await r.json();
-    status.textContent = `ok · ${layoutData?.app_state?.title ?? ''}${autoRefresh ? ' ⏺' : ''}`;
+    const title = layoutData?.app_state?.title || currentApp || 'QML App';
+    status.textContent = `ok · ${title}${autoRefresh ? ' ⏺' : ''}`;
     status.className = 'status ok';
     render();
   } catch (e) {
@@ -348,7 +361,7 @@ function toggleAutoRefresh() {
   // Update status immediately
   const status = document.getElementById('status');
   if (layoutData) {
-    status.textContent = `ok · ${layoutData.app_state?.title ?? ''}${autoRefresh ? ' ⏺' : ''}`;
+    status.textContent = `ok · ${layoutData.app_state?.title || currentApp}${autoRefresh ? ' ⏺' : ''}`;
   }
 }
 
@@ -426,7 +439,10 @@ function renderCanvas(data) {
       const h = (c.h || 0) * scale;
       const color = ROLE_COLORS[node.role] || '#8b8fa3';
 
+      ctx.fillStyle = color + '40';
       ctx.fillRect(x + ox, y + oy, w, h);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1;
       ctx.strokeRect(x + ox, y + oy, w, h);
     }
     for (const child of (node.children || [])) {
@@ -495,7 +511,7 @@ function buildCard(n) {
     return `<button onclick="doAction('${esc(cuid)}','${a}')">${a}</button>`;
   }).join('');
 
-  return `<div class="card">
+  return `<div class="card" data-cuid="${esc(cuid)}">
     <div class="card-header">
       <span class="card-role ${roleClass}">${role}</span>
       <span class="card-id">${esc(id)}</span>
@@ -567,6 +583,7 @@ function toggleView() {
 
 async function doAction(cuid, action) {
   const body = { cuid, action };
+  if (currentApp) body.app = currentApp;
   // Collect optional value for fill/select
   if (action === 'fill' || action === 'select') {
     const inp = document.getElementById(`val-${cuid}-${action}`);
@@ -605,6 +622,7 @@ function toast(msg, type) {
   t._timer = setTimeout(() => t.className = 'toast', 2500);
 }
 
+fetchWindows();
 fetchLayout();
 </script>
 </body>

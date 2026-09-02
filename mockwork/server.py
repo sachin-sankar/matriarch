@@ -3,11 +3,12 @@ import os
 import sys
 import threading
 from enum import Enum
+from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_mcp import FastApiMCP
-from lib.inspector import QMLInspector
+from lib.inspector import App
 from pydantic import BaseModel, Field
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
@@ -26,7 +27,8 @@ app.add_middleware(
 
 mcp = FastApiMCP(app, describe_all_responses=True)
 
-inspector = None
+# Global registry of loaded apps
+apps: dict[str, App] = {}
 
 ROLE_MAP = {
     "TextField": "text_input",
@@ -64,11 +66,12 @@ class InteractionAction(str, Enum):
 class InteractRequest(BaseModel):
     """Request body for the /interact endpoint."""
 
+    app: Optional[str] = Field(None, description="App name (defaults to first app)")
     cuid: str = Field(..., description="Component unique identifier from /layout")
     action: InteractionAction = Field(
         ..., description="Action to perform on the component"
     )
-    value: str | None = Field(None, description="Value for fill/select actions")
+    value: Optional[str] = Field(None, description="Value for fill/select actions")
 
 
 class InteractResponse(BaseModel):
@@ -85,22 +88,49 @@ class ErrorResponse(BaseModel):
     detail: str
 
 
+def _get_app(req: Request) -> Optional[App]:
+    """Get the requested app or default to first."""
+    app_name = req.query_params.get("app")
+    if app_name:
+        return apps.get(app_name)
+    if apps:
+        return next(iter(apps.values()))
+    return None
+
+
+@app.get("/windows", response_description="List all loaded QML apps")
+def get_windows():
+    return {
+        name: {
+            "name": name,
+            "qml_path": a.qml_path,
+            "alive": a.is_alive(),
+            "error": a._error,
+        }
+        for name, a in apps.items()
+    }
+
+
 @app.get("/raw", response_description="Raw QML inspection tree without processing")
-def get_raw():
-    if inspector is None:
-        raise HTTPException(status_code=500, detail="Inspector not initialized")
-    return inspector.get_layout_safe()
+def get_raw(req: Request):
+    a = _get_app(req)
+    if a is None:
+        raise HTTPException(status_code=500, detail="No apps loaded")
+    layout = a.get_layout()
+    if "error" in layout:
+        raise HTTPException(status_code=500, detail=layout["error"])
+    return layout
 
 
 @app.get(
     "/layout",
     response_description="Returns the QML application UI tree with component metadata",
 )
-def get_layout():
-    if inspector is None:
-        raise HTTPException(status_code=500, detail="Inspector not initialized")
-
-    full_tree = inspector.get_layout_safe()
+def get_layout(req: Request):
+    a = _get_app(req)
+    if a is None:
+        raise HTTPException(status_code=500, detail="No apps loaded")
+    full_tree = a.get_layout()
     if "error" in full_tree:
         raise HTTPException(status_code=500, detail=full_tree["error"])
 
@@ -183,7 +213,7 @@ def get_layout():
             "model": ErrorResponse,
             "description": "Invalid action for role or missing fields",
         },
-        404: {"model": ErrorResponse, "description": "CUID not found"},
+        404: {"model": ErrorResponse, "description": "CUID not found or app not found"},
         500: {
             "model": ErrorResponse,
             "description": "Inspector not initialized or action failed",
@@ -193,24 +223,17 @@ def get_layout():
     description="Perform an action on a QML component identified by its CUID",
 )
 def interact(req: InteractRequest):
-    if inspector is None:
-        raise HTTPException(status_code=500, detail="Inspector not initialized")
+    app_name = req.app
+    if app_name:
+        a = apps.get(app_name)
+        if a is None:
+            raise HTTPException(status_code=404, detail=f"App '{app_name}' not found")
+    elif not apps:
+        raise HTTPException(status_code=500, detail="No apps loaded")
+    else:
+        a = next(iter(apps.values()))
 
-    obj = inspector.find_by_cuid(req.cuid)
-    if obj is None:
-        raise HTTPException(status_code=404, detail=f"CUID '{req.cuid}' not found")
-
-    class_name = obj.metaObject().className()
-    role = next((v for k, v in ROLE_MAP.items() if class_name.startswith(k)), None)
-
-    valid_actions = ACTION_MAP.get(role, [])
-    if req.action not in valid_actions:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Action '{req.action}' not supported for role '{role}'",
-        )
-
-    result = inspector.perform_action_safe(obj, req.action, req.value)
+    result = a.interact(req.cuid, req.action.value, req.value)
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
 
@@ -233,22 +256,36 @@ def run_api():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Launch QML application with an inspection server."
+        description="Launch QML application(s) with an inspection server."
     )
-    parser.add_argument("qml_file", help="Path to the .qml file to load")
+    parser.add_argument(
+        "qml_files",
+        nargs="+",
+        help="Path(s) to the .qml file(s) to load",
+    )
     args = parser.parse_args()
 
     qt_app = QGuiApplication(sys.argv)
-    engine = QQmlApplicationEngine()
 
-    qml_path = os.path.abspath(args.qml_file)
-    engine.load(qml_path)
+    for i, qml_file in enumerate(args.qml_files):
+        app_name = os.path.basename(qml_file).replace(".qml", "")
+        if i > 0:
+            app_name = f"{app_name}_{i}"
+        qml_path = os.path.abspath(qml_file)
 
-    if not engine.rootObjects():
-        print(f"Error: Could not load QML file at {qml_path}")
+        a = App(app_name, qml_path)
+        if a.load():
+            apps[app_name] = a
+            print(f"Loaded: {app_name} from {qml_path}")
+        else:
+            print(f"Error loading {app_name}: {a._error}")
+
+    if not apps:
+        print("Error: No apps could be loaded")
         sys.exit(-1)
 
-    inspector = QMLInspector(engine)
+    print(f"Loaded {len(apps)} app(s): {', '.join(apps.keys())}")
+    print("Windows endpoint: http://127.0.0.1:8080/windows")
 
     api_thread = threading.Thread(target=run_api, daemon=True)
     api_thread.start()
