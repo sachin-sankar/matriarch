@@ -3,7 +3,8 @@ name = "matriarch"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
-    "flask>=3.1.3",
+    "fastapi>=0.141.1",
     "pyside6>=6.11.2",
     "requests>=2.34.2",
+    "uvicorn[standard]>=0.52.4",
 ]
