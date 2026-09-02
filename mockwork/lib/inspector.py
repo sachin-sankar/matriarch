@@ -55,20 +55,41 @@ class QMLInspector(QObject):
             class_name = obj.metaObject().className()
 
             if action == "fill":
-                obj.setProperty("text", value)
+                if hasattr(obj, "setProperty"):
+                    obj.setProperty("text", value)
+                else:
+                    raise AttributeError(f"No setProperty on {class_name}")
             elif action == "click":
-                if class_name.startswith("Button"):
+                if hasattr(obj, "click"):
                     obj.click()
-                elif class_name.startswith(("CheckBox", "Switch")):
+                elif class_name.startswith(("CheckBox", "Switch")) and hasattr(
+                    obj, "toggle"
+                ):
                     obj.toggle()
+                else:
+                    raise AttributeError(f"No click/toggle on {class_name}")
             elif action == "toggle":
-                obj.setChecked(bool(value))
+                if hasattr(obj, "setChecked"):
+                    obj.setChecked(bool(value))
+                elif hasattr(obj, "toggle"):
+                    obj.toggle()
+                else:
+                    raise AttributeError(f"No setChecked/toggle on {class_name}")
             elif action == "select":
-                obj.setCurrentIndex(int(value))
+                if hasattr(obj, "setCurrentIndex"):
+                    obj.setCurrentIndex(int(value))
+                else:
+                    raise AttributeError(f"No setCurrentIndex on {class_name}")
             elif action == "focus":
-                obj.setFocus()
+                if hasattr(obj, "setFocus"):
+                    obj.setFocus()
+                else:
+                    raise AttributeError(f"No setFocus on {class_name}")
             elif action == "clear":
-                obj.clear()
+                if hasattr(obj, "clear"):
+                    obj.clear()
+                else:
+                    raise AttributeError(f"No clear on {class_name}")
 
             self._result = {"success": True, "action": action, "cuid": obj.objectName()}
         except Exception as e:
