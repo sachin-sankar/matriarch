@@ -108,6 +108,9 @@ class ErrorResponse(BaseModel):
     """Error response model."""
 
     detail: str
+    """Error response model."""
+
+    detail: str
 
 
 def _get_app(req: Request) -> Optional[App]:
