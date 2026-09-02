@@ -153,7 +153,7 @@ with gr.Blocks(title="QML Inspector Dashboard") as demo:
         status_output = gr.Textbox(label="Status", interactive=False)
 
     title_output = gr.Markdown()
-    raw_output = gr.JSON(label="Raw API Response", interactive=False)
+    raw_output = gr.JSON(label="Raw API Response")
 
     with gr.Column() as interactors_container:
         gr.Markdown("## Interactors")
