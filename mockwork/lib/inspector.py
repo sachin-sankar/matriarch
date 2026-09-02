@@ -1,7 +1,6 @@
 import math
 import re
 import threading
-import uuid
 
 from PySide6.QtCore import QObject, Signal, Slot
 
@@ -130,10 +129,9 @@ class QMLInspector(QObject):
             except Exception:
                 pass
 
-        cuid = None
-        if role:
-            cuid = uuid.uuid4().hex[:8]
-            self._cuid_to_obj[cuid] = item
+        match = re.search(r"0x[0-9a-fA-F]+", str(item))
+        cuid = match.group(0) if match else str(id(item))
+        self._cuid_to_obj[cuid] = item
 
         return {
             "id": item.objectName() or re.sub(r"\s+at\s+0x[0-9a-f]+>", "", str(item)),
