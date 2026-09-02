@@ -85,7 +85,7 @@ def refresh():
     return title, "\n".join(lines)
 
 
-def do_action(cuid, action):
+def do_action(cuid, action, value=None):
     """Handle action button click."""
     return perform_action(cuid, action)
 
