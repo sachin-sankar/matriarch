@@ -137,18 +137,6 @@ def get_windows():
     )
 
 
-def get_windows():
-    return {
-        name: {
-            "name": name,
-            "qml_path": a.qml_path,
-            "alive": a.is_alive(),
-            "error": a._error,
-        }
-        for name, a in apps.items()
-    }
-
-
 @app.get("/raw", response_description="Raw QML inspection tree without processing")
 def get_raw(req: Request):
     a = _get_app(req)
