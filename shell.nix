@@ -15,6 +15,7 @@
       libxml2
       libxslt
       krb5
+      brotli
 
       # GUI, Fonts & Display
       libGL
