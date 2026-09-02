@@ -201,7 +201,7 @@ if __name__ == "__main__":
     parser.add_argument("qml_file", help="Path to the .qml file to load")
     args = parser.parse_args()
 
-    app = QGuiApplication(sys.argv)
+    qt_app = QGuiApplication(sys.argv)
     engine = QQmlApplicationEngine()
 
     qml_path = os.path.abspath(args.qml_file)
@@ -216,4 +216,4 @@ if __name__ == "__main__":
     api_thread = threading.Thread(target=run_api, daemon=True)
     api_thread.start()
 
-    sys.exit(app.exec())
+    sys.exit(qt_app.exec())
