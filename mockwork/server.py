@@ -21,63 +21,49 @@ def get_layout():
     if "error" in full_tree:
         return jsonify(full_tree), 500
 
-    interactors = []
+    def process_node(node):
+        # Filter out nulls immediately during child processing
+        children = [
+            processed
+            for child in node.get("children", [])
+            if (processed := process_node(child)) is not None
+        ]
 
-    def flatten(node):
-        if node.get("role"):
+        # Extract semantic data for this node
+        role = node.get("role")
+        if role:
             label = node["properties"].get("text", node["id"])
-
             # For toggles, strictly use the 'checked' property for the value
-            role = node.get("role")
             if role == "checkbox" or role == "switch":
                 val = node["properties"].get("checked")
             else:
                 val = node["properties"].get("text")
-            interactors.append(
-                {
-                    "id": node["id"],
-                    "role": role,
-                    "label": label,
-                    "value": val,
-                    "coordinates": node["coordinates"],
-                    "accessible_name": node["id"],
-                }
-            )
-        for child in node.get("children", []):
-            flatten(child)
 
-    flatten(full_tree)
+            return {
+                "id": node["id"],
+                "role": role,
+                "label": label,
+                "value": val,
+                "coordinates": node["coordinates"],
+                "accessible_name": node["id"],
+                "children": children,
+            }
 
-    # Filter shadow elements: Remove interactors that are completely contained
-    # within another interactor of the same or different role, unless they have a distinct label/value.
-    unique_interactors = []
-    sorted_interactors = sorted(
-        interactors,
-        key=lambda x: (
-            (x["coordinates"]["w"] * x["coordinates"]["h"]) if x["coordinates"] else 0
-        ),
-        reverse=True,
-    )
+        # If not an interactor, just return the children (or null if no children)
+        return (
+            {
+                "id": node["id"],
+                "children": children,
+            }
+            if children
+            else None
+        )
 
-    for item in sorted_interactors:
-        is_shadow = False
-        for existing in unique_interactors:
-            if item["coordinates"] and existing["coordinates"]:
-                if (
-                    item["coordinates"]["x"] >= existing["coordinates"]["x"]
-                    and item["coordinates"]["y"] >= existing["coordinates"]["y"]
-                    and (item["coordinates"]["x"] + item["coordinates"]["w"])
-                    <= (existing["coordinates"]["x"] + existing["coordinates"]["w"])
-                    and (item["coordinates"]["y"] + item["coordinates"]["h"])
-                    <= (existing["coordinates"]["y"] + existing["coordinates"]["h"])
-                ):
-                    if item["label"] == existing["label"] or not item["label"]:
-                        is_shadow = True
-                        break
-        if not is_shadow:
-            unique_interactors.append(item)
+    processed_tree = process_node(full_tree)
 
-    interactors = unique_interactors
+    # Note: Shadow filtering is complex on a tree.
+    # For now, we return the semantic tree structure.
+    interactors = processed_tree
 
     # Root node is the root window
     props = full_tree.get("properties", {})
