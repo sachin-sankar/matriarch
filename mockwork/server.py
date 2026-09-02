@@ -99,6 +99,18 @@ def get_layout():
 
         role = node.get("role")
         if role:
+            # Skip QtQuick Controls internal wrapper nodes (e.g. ButtonPanel)
+            # that have no text/checked property — they're styling sub-components
+            if role == "button" and "text" not in node.get("properties", {}):
+                return {"id": node["id"], "children": children} if children else None
+            if role in ("checkbox", "switch") and "checked" not in node.get(
+                "properties", {}
+            ):
+                return {"id": node["id"], "children": children} if children else None
+            if role in ("text_input", "text_area") and "text" not in node.get(
+                "properties", {}
+            ):
+                return {"id": node["id"], "children": children} if children else None
             label = node["properties"].get("text", node["id"])
             if role in ("checkbox", "switch"):
                 val = node["properties"].get("checked")
