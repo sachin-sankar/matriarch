@@ -5,7 +5,7 @@ import threading
 from enum import Enum
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_mcp import FastApiMCP
 from lib.inspector import App
@@ -104,9 +104,8 @@ class ErrorResponse(BaseModel):
     detail: str
 
 
-def _get_app(req: Request) -> Optional[App]:
+def _get_app(app_name: Optional[str] = None) -> Optional[App]:
     """Get the requested app or default to first."""
-    app_name = req.query_params.get("app")
     if app_name:
         return apps.get(app_name)
     if apps:
@@ -135,8 +134,10 @@ def get_windows():
 
 
 @app.get("/raw", response_description="Raw QML inspection tree without processing")
-def get_raw(req: Request):
-    a = _get_app(req)
+def get_raw(
+    app: Optional[str] = Query(None, description="App name to inspect"),
+):
+    a = _get_app(app)
     if a is None:
         raise HTTPException(status_code=500, detail="No apps loaded")
     layout = a.get_layout()
@@ -149,8 +150,10 @@ def get_raw(req: Request):
     "/layout",
     response_description="Returns the QML application UI tree with component metadata",
 )
-def get_layout(req: Request):
-    a = _get_app(req)
+def get_layout(
+    app: Optional[str] = Query(None, description="App name to inspect"),
+):
+    a = _get_app(app)
     if a is None:
         raise HTTPException(status_code=500, detail="No apps loaded")
     full_tree = a.get_layout()
@@ -245,16 +248,15 @@ def get_layout(req: Request):
     summary="Interact with a QML component",
     description="Perform an action on a QML component identified by its CUID",
 )
-def interact(req: InteractRequest):
-    app_name = req.app
-    if app_name:
-        a = apps.get(app_name)
-        if a is None:
-            raise HTTPException(status_code=404, detail=f"App '{app_name}' not found")
-    elif not apps:
-        raise HTTPException(status_code=500, detail="No apps loaded")
-    else:
-        a = next(iter(apps.values()))
+def interact(
+    req: InteractRequest,
+    app: Optional[str] = Query(None, description="App name to interact with"),
+):
+    # Use query param if provided, otherwise fall back to request body
+    target_app = app or req.app
+    a = _get_app(target_app)
+    if a is None:
+        raise HTTPException(status_code=404, detail=f"App '{target_app}' not found")
 
     result = a.interact(req.cuid, req.action.value, req.value)
     if "error" in result:
