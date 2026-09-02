@@ -166,11 +166,30 @@ def get_layout():
 
     flatten(full_tree)
 
+    # Root node is the root window; extract dimensions directly
+    props = full_tree.get("properties", {})
+    app_width = props.get("width") or 900
+    app_height = props.get("height") or 550
+
+    # If root width/height are 0 or missing, fallback to search
+    if app_width == 0 or app_height == 0:
+
+        def find_root_dims(node):
+            nonlocal app_width, app_height
+            if "Window" in node.get("class", ""):
+                p = node.get("properties", {})
+                app_width = p.get("width") or app_width
+                app_height = p.get("height") or app_height
+            for child in node.get("children", []):
+                find_root_dims(child)
+
+        find_root_dims(full_tree)
+
     return jsonify(
         {
             "app_state": {
                 "title": "QML File Manager",
-                "dimensions": {"width": 900, "height": 550},
+                "dimensions": {"width": app_width, "height": app_height},
             },
             "interactors": interactors,
         }
