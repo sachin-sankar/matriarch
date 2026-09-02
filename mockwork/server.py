@@ -46,6 +46,7 @@ def get_layout():
                 "value": val,
                 "coordinates": node["coordinates"],
                 "accessible_name": node["id"],
+                "focus": node["properties"].get("activeFocus", False),
                 "children": children,
             }
 

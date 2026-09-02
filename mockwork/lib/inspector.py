@@ -1,5 +1,6 @@
-import threading
 import math
+import re
+import threading
 from PySide6.QtCore import QObject, Signal, Slot
 
 
@@ -88,7 +89,7 @@ class QMLInspector(QObject):
                 pass
 
         return {
-            "id": item.objectName() or str(item),
+            "id": item.objectName() or re.sub(r"\s+at\s+0x[0-9a-f]+>", "", str(item)),
             "class": class_name,
             "role": role,
             "properties": properties,
