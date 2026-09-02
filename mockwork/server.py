@@ -1,3 +1,5 @@
+import argparse
+
 import sys
 import os
 import threading
@@ -74,14 +76,21 @@ def run_api():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Launch QML application with an inspection server."
+    )
+    parser.add_argument("qml_file", help="Path to the .qml file to load")
+    args = parser.parse_args()
+
     app = QGuiApplication(sys.argv)
     engine = QQmlApplicationEngine()
 
-    # Updated path to the refactored qml file
-    qml_file = os.path.abspath("apps/filemanager.qml")
-    engine.load(qml_file)
+    # Load the provided QML file
+    qml_path = os.path.abspath(args.qml_file)
+    engine.load(qml_path)
 
     if not engine.rootObjects():
+        print(f"Error: Could not load QML file at {qml_path}")
         sys.exit(-1)
 
     # Initialize the inspector with the engine
