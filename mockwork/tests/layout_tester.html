@@ -208,7 +208,46 @@
     }
     .tree-label .node-id { color: var(--text-dim); font-family: monospace; font-size: 11px; }
     .tree-children.collapsed { display: none; }
-    .tree-toggle { color: var(--text-dim); font-size: 10px; }
+
+    .canvas-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 16px;
+    }
+    .canvas-wrap h3 {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+    }
+    #layoutCanvas {
+      display: block;
+      width: 100%;
+      border-radius: 4px;
+      background: #0d0f14;
+    }
+    .legend {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+    }
   </style>
 </head>
 <body>
@@ -221,7 +260,17 @@
     <span class="status" id="status">—</span>
   </div>
 
-  <div id="app"></div>
+
+  <div class="canvas-wrap">
+    <h3>Layout Visualization</h3>
+    <canvas id="layoutCanvas" height="400"></canvas>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#5dade2"></div>text_input / text_area</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#c39bff"></div>button</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#3dd68c"></div>checkbox / switch</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f5a623"></div>dropdown</div>
+    </div>
+  </div>
 
   <div class="toast" id="toast"></div>
 
@@ -272,12 +321,79 @@ async function fetchLayout() {
 
 function render() {
   if (!layoutData) return;
+  renderCanvas(layoutData);
   const app = document.getElementById('app');
   if (currentView === 'cards') {
     app.innerHTML = renderCards(layoutData);
   } else {
     app.innerHTML = renderTree(layoutData.interactors, 0);
   }
+}
+
+function renderCanvas(data) {
+  const canvas = document.getElementById('layoutCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = 400 * dpr;
+  ctx.scale(dpr, dpr);
+  canvas.style.height = '400px';
+
+  const W = rect.width;
+  const H = 400;
+  const dims = data?.app_state?.dimensions || { width: 1920, height: 1050 };
+  const scaleX = W / dims.width;
+  const scaleY = H / dims.height;
+  const scale = Math.min(scaleX, scaleY);
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Draw app window outline
+  ctx.strokeStyle = '#2e3345';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(0, 0, W, H);
+
+  const ROLE_COLORS = {
+    text_input: '#5dade2',
+    text_area: '#5dade2',
+    button: '#c39bff',
+    checkbox: '#3dd68c',
+    switch: '#3dd68c',
+    dropdown: '#f5a623',
+  };
+
+  function drawNode(node) {
+    if (!node) return;
+    if (node.role && node.coordinates) {
+      const c = node.coordinates;
+      const x = c.x * scale;
+      const y = c.y * scale;
+      const w = (c.w || 0) * scale;
+      const h = (c.h || 0) * scale;
+      const color = ROLE_COLORS[node.role] || '#8b8fa3';
+
+      ctx.fillStyle = color + '30';
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeRect(x, y, w, h);
+
+      // Label if wide enough
+      if (w > 30) {
+        ctx.fillStyle = color;
+        ctx.font = '10px monospace';
+        const label = node.id || node.cuid?.slice(0, 6) || '';
+        ctx.fillText(label, x + 4, y + 12);
+      }
+    }
+    for (const child of (node.children || [])) {
+      drawNode(child);
+    }
+  }
+
+  drawNode(data?.interactors);
 }
 
 function renderCards(data) {
