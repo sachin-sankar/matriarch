@@ -37,13 +37,13 @@ class QMLInspector(QObject):
                 self._result = {"error": "QML Engine root object not found"}
             else:
                 root_window = self.engine.rootObjects()[0]
-                self._result = self._serialize_qml_item(root_window)
+                self._result = self._serialize_qml_item(root_window, 0, 0)
         except Exception as e:
             self._result = {"error": str(e)}
         finally:
             self._event.set()
 
-    def _serialize_qml_item(self, item: QObject) -> dict:
+    def _serialize_qml_item(self, item: QObject, abs_x=0, abs_y=0) -> dict:
         meta = item.metaObject()
         class_name = meta.className()
         properties = {}
@@ -68,12 +68,19 @@ class QMLInspector(QObject):
 
         role = next((v for k, v in role_map.items() if class_name.startswith(k)), None)
 
+        # Calculate absolute coordinates
+        # QML properties x, y are relative to parent
+        rel_x = properties.get("x", 0)
+        rel_y = properties.get("y", 0)
+        actual_abs_x = abs_x + rel_x
+        actual_abs_y = abs_y + rel_y
+
         coords = None
         if role:
             try:
                 coords = {
-                    "x": properties.get("x", 0),
-                    "y": properties.get("y", 0),
+                    "x": actual_abs_x,
+                    "y": actual_abs_y,
                     "w": properties.get("width", 0),
                     "h": properties.get("height", 0),
                 }
@@ -87,7 +94,7 @@ class QMLInspector(QObject):
             "properties": properties,
             "coordinates": coords,
             "children": [
-                self._serialize_qml_item(child)
+                self._serialize_qml_item(child, actual_abs_x, actual_abs_y)
                 for child in item.children()
                 if hasattr(child, "metaObject")
             ],

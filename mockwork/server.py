@@ -26,11 +26,17 @@ def get_layout():
     def flatten(node):
         if node.get("role"):
             label = node["properties"].get("text", node["id"])
-            val = node["properties"].get("text") or node["properties"].get("checked")
+
+            # For toggles, strictly use the 'checked' property for the value
+            role = node.get("role")
+            if role == "checkbox" or role == "switch":
+                val = node["properties"].get("checked")
+            else:
+                val = node["properties"].get("text")
             interactors.append(
                 {
                     "id": node["id"],
-                    "role": node["role"],
+                    "role": role,
                     "label": label,
                     "value": val,
                     "coordinates": node["coordinates"],
@@ -41,6 +47,37 @@ def get_layout():
             flatten(child)
 
     flatten(full_tree)
+
+    # Filter shadow elements: Remove interactors that are completely contained
+    # within another interactor of the same or different role, unless they have a distinct label/value.
+    unique_interactors = []
+    sorted_interactors = sorted(
+        interactors,
+        key=lambda x: (
+            (x["coordinates"]["w"] * x["coordinates"]["h"]) if x["coordinates"] else 0
+        ),
+        reverse=True,
+    )
+
+    for item in sorted_interactors:
+        is_shadow = False
+        for existing in unique_interactors:
+            if item["coordinates"] and existing["coordinates"]:
+                if (
+                    item["coordinates"]["x"] >= existing["coordinates"]["x"]
+                    and item["coordinates"]["y"] >= existing["coordinates"]["y"]
+                    and (item["coordinates"]["x"] + item["coordinates"]["w"])
+                    <= (existing["coordinates"]["x"] + existing["coordinates"]["w"])
+                    and (item["coordinates"]["y"] + item["coordinates"]["h"])
+                    <= (existing["coordinates"]["y"] + existing["coordinates"]["h"])
+                ):
+                    if item["label"] == existing["label"] or not item["label"]:
+                        is_shadow = True
+                        break
+        if not is_shadow:
+            unique_interactors.append(item)
+
+    interactors = unique_interactors
 
     # Root node is the root window
     props = full_tree.get("properties", {})
