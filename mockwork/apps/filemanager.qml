@@ -1,8 +1,12 @@
 import QtQuick
+import QtQuick.Controls.Material
 import QtQuick.Controls
 import QtQuick.Layouts
-
 ApplicationWindow {
+
+    Material.theme: Material.Dark
+    Material.accent: "#6c8cff"
+    color: "#0f1117"
     id: root
     width: 900
     height: 550
