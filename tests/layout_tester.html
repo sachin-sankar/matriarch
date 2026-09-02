@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QML Inspector — Layout Tester</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #232733;
+      --border: #2e3345;
+      --text: #e2e4eb;
+      --text-dim: #8b8fa3;
+      --accent: #6c8cff;
+      --accent-dim: #3a54b8;
+      --green: #3dd68c;
+      --red: #f06272;
+      --orange: #f5a623;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 20px;
+    }
+    h1 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .subtitle { color: var(--text-dim); margin-bottom: 20px; }
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .topbar .status {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-left: auto;
+    }
+    .topbar .status.ok { color: var(--green); }
+    .topbar .status.err { color: var(--red); }
+    button {
+      background: var(--accent-dim);
+      color: var(--text);
+      border: 1px solid var(--accent);
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button:hover { background: var(--accent); }
+    button:active { transform: scale(0.97); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.secondary {
+      background: var(--surface2);
+      border-color: var(--border);
+      color: var(--text-dim);
+    }
+    button.secondary:hover { border-color: var(--accent); color: var(--text); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 12px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .card-role {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 2px 7px;
+      border-radius: 4px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .role-text_input, .role-text_area { background: #1e3a5e; color: #5dade2; }
+    .role-button { background: #3a1e5e; color: #c39bff; }
+    .role-checkbox, .role-switch { background: #1e5e3a; color: #3dd68c; }
+    .role-dropdown { background: #5e3a1e; color: #f5a623; }
+    .card-id {
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      color: var(--text);
+      word-break: break-all;
+    }
+    .card-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    .card-meta span { display: flex; gap: 6px; }
+    .card-meta .label { color: var(--text-dim); min-width: 50px; }
+    .card-meta .val { color: var(--text); font-family: monospace; }
+    .card-meta .val.bool-on { color: var(--green); }
+    .card-meta .val.bool-off { color: var(--text-dim); }
+    .card-coords {
+      font-size: 10px;
+      color: var(--text-dim);
+      font-family: monospace;
+    }
+
+    .card-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding-top: 6px;
+      border-top: 1px solid var(--border);
+    }
+    .card-actions button {
+      font-size: 11px;
+      padding: 4px 10px;
+    }
+    .card-actions .action-group {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+    .card-actions .action-group input {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 11px;
+      width: 110px;
+    }
+    .card-actions .action-group input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .card-actions .action-group label {
+      font-size: 10px;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 12px;
+      z-index: 100;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.2s, transform 0.2s;
+      max-width: 320px;
+    }
+    .toast.show { opacity: 1; transform: none; }
+    .toast.ok { border-color: var(--green); color: var(--green); }
+    .toast.err { border-color: var(--red); color: var(--red); }
+
+    .empty {
+      color: var(--text-dim);
+      text-align: center;
+      padding: 40px;
+      font-size: 14px;
+    }
+    .tree-root {
+      padding-left: 16px;
+    }
+    .tree-node { margin-bottom: 4px; }
+    .tree-children { padding-left: 16px; border-left: 1px solid var(--border); }
+    .tree-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 6px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .tree-label:hover { background: var(--surface2); }
+    .tree-label .role-badge {
+      font-size: 9px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .tree-label .node-id { color: var(--text-dim); font-family: monospace; font-size: 11px; }
+    .tree-children.collapsed { display: none; }
+    .tree-toggle { color: var(--text-dim); font-size: 10px; }
+  </style>
+</head>
+<body>
+  <h1>QML Inspector — Layout Tester</h1>
+  <p class="subtitle">Fetch, inspect, and interact with QML components via <code>/layout</code> and <code>/interact</code></p>
+
+  <div class="topbar">
+    <button id="refreshBtn" onclick="fetchLayout()">⟳ Refresh</button>
+    <button class="secondary" onclick="toggleView()">Toggle Tree / Cards</button>
+    <span class="status" id="status">—</span>
+  </div>
+
+  <div id="app"></div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+const API = 'http://127.0.0.1:8080';
+let currentView = 'cards'; // 'cards' | 'tree'
+let layoutData = null;
+
+const ROLE_CLASSES = {
+  text_input: 'role-text_input',
+  text_area: 'role-text_area',
+  button: 'role-button',
+  checkbox: 'role-checkbox',
+  switch: 'role-switch',
+  dropdown: 'role-dropdown',
+};
+
+const ACTION_MAP = {
+  text_input: ['fill', 'focus', 'clear'],
+  text_area: ['fill', 'focus', 'clear'],
+  button: ['click'],
+  checkbox: ['click', 'toggle'],
+  switch: ['click', 'toggle'],
+  dropdown: ['select', 'focus'],
+};
+
+async function fetchLayout() {
+  const status = document.getElementById('status');
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  status.textContent = 'fetching…';
+  status.className = 'status';
+  try {
+    const r = await fetch(`${API}/layout`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    layoutData = await r.json();
+    status.textContent = `ok · ${layoutData?.app_state?.title ?? ''}`;
+    status.className = 'status ok';
+    render();
+  } catch (e) {
+    status.textContent = `err: ${e.message}`;
+    status.className = 'status err';
+    document.getElementById('app').innerHTML = `<div class="empty">Failed to fetch layout: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function render() {
+  if (!layoutData) return;
+  const app = document.getElementById('app');
+  if (currentView === 'cards') {
+    app.innerHTML = renderCards(layoutData);
+  } else {
+    app.innerHTML = renderTree(layoutData.interactors, 0);
+  }
+}
+
+function renderCards(data) {
+  const interactors = data.interactors;
+  if (!interactors || !hasInteractors(interactors)) {
+    return '<div class="empty">No interactive components found.</div>';
+  }
+  const cards = [];
+  walkInteractors(interactors, cards);
+  return `<div class="grid">${cards.join('')}</div>`;
+}
+
+function hasInteractors(node) {
+  if (!node) return false;
+  if (typeof node === 'object') {
+    if (node.role) return true;
+    for (const child of (node.children || [])) {
+      if (hasInteractors(child)) return true;
+    }
+  }
+  return false;
+}
+
+function walkInteractors(node, out) {
+  if (!node) return;
+  if (node.role) {
+    out.push(buildCard(node));
+  }
+  for (const child of (node.children || [])) {
+    walkInteractors(child, out);
+  }
+}
+
+function buildCard(n) {
+  const role = n.role;
+  const actions = ACTION_MAP[role] || [];
+  const roleClass = ROLE_CLASSES[role] || '';
+  const cuid = n.cuid || '—';
+  const id = n.id || '—';
+  const label = n.label || n.accessible_name || '—';
+  const value = formatValue(n.value, role);
+  const coords = n.coordinates ? `${n.coordinates.x},${n.coordinates.y} (${n.coordinates.w}×${n.coordinates.h})` : '—';
+  const focus = n.focus ? '🔵' : '⚪';
+
+  const actionBtns = actions.map(a => {
+    if (a === 'fill' || a === 'select') {
+      return `<div class="action-group">
+        <label>${a}:</label>
+        <input type="text" id="val-${cuid}-${a}" placeholder="value…">
+        <button onclick="doAction('${esc(cuid)}','${a}')">${a}</button>
+      </div>`;
+    }
+    if (a === 'toggle') {
+      return `<div class="action-group">
+        <button onclick="doAction('${esc(cuid)}','toggle')">${a}</button>
+      </div>`;
+    }
+    return `<button onclick="doAction('${esc(cuid)}','${a}')">${a}</button>`;
+  }).join('');
+
+  return `<div class="card">
+    <div class="card-header">
+      <span class="card-role ${roleClass}">${role}</span>
+      <span class="card-id">${esc(id)}</span>
+    </div>
+    <div class="card-meta">
+      <span><span class="label">cuid</span><span class="val" style="font-size:10px">${esc(cuid)}</span></span>
+      <span><span class="label">label</span><span class="val">${esc(label)}</span></span>
+      <span><span class="label">value</span><span class="val ${value === 'true' ? 'bool-on' : value === 'false' ? 'bool-off' : ''}">${esc(value)}</span></span>
+      <span><span class="label">focus</span><span class="val">${focus}</span></span>
+      <span><span class="label">coords</span><span class="val">${esc(coords)}</span></span>
+    </div>
+    <div class="card-actions">${actionBtns}</div>
+  </div>`;
+}
+
+function renderTree(node, depth) {
+  if (!node) return '';
+  let html = '';
+  const role = node.role;
+  const isLeaf = !node.children || node.children.length === 0;
+  const roleClass = role ? ROLE_CLASSES[node.role] || '' : '';
+  const label = node.label || node.id || '';
+  const cuid = node.cuid || '';
+
+  const badge = role
+    ? `<span class="role-badge ${roleClass}">${role}</span>`
+    : '';
+  const cuidTag = cuid
+    ? `<span class="node-id" title="cuid: ${esc(cuid)}">${esc(cuid)}</span>`
+    : '';
+  const toggle = !isLeaf ? `<span class="tree-toggle" onclick="toggleNode(this)">▶</span>` : '';
+
+  html += `<div class="tree-node">
+    <div class="tree-label" onclick="cardFromTreeNode('${esc(cuid)}')">
+      ${toggle}${badge}${cuidTag}<span>${esc(label || node.id)}</span>
+    </div>`;
+
+  if (!isLeaf) {
+    html += `<div class="tree-children">${node.children.map(c => renderTree(c, depth + 1)).join('')}</div>`;
+  }
+  html += '</div>';
+  return html;
+}
+
+function cardFromTreeNode(cuid) {
+  // Switch to cards view and highlight the node
+  currentView = 'cards';
+  render();
+  const card = document.querySelector(`[data-cuid="${esc(cuid)}"]`);
+  if (card) {
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.style.outline = '2px solid var(--accent)';
+    setTimeout(() => card.style.outline = '', 2000);
+  }
+}
+
+function toggleNode(el) {
+  const children = el.closest('.tree-node').querySelector('.tree-children');
+  if (children) {
+    children.classList.toggle('collapsed');
+    el.textContent = children.classList.contains('collapsed') ? '▶' : '▼';
+  }
+}
+
+function toggleView() {
+  currentView = currentView === 'cards' ? 'tree' : 'cards';
+  render();
+}
+
+async function doAction(cuid, action) {
+  const body = { cuid, action };
+  // Collect optional value for fill/select
+  if (action === 'fill' || action === 'select') {
+    const inp = document.getElementById(`val-${cuid}-${action}`);
+    if (inp) body.value = inp.value || null;
+  }
+  try {
+    const r = await fetch(`${API}/interact`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || r.statusText);
+    toast(`✅ ${action} on ${cuid.slice(0, 6)}…`, 'ok');
+    await fetchLayout();
+  } catch (e) {
+    toast(`❌ ${e.message}`, 'err');
+  }
+}
+
+function formatValue(v, role) {
+  if (v === undefined || v === null) return '—';
+  if (typeof v === 'boolean') return v ? 'true' : 'false';
+  return String(v);
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function toast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.className = 'toast', 2500);
+}
+
+fetchLayout();
+</script>
+</body>
+</html>

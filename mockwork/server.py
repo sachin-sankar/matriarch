@@ -9,11 +9,18 @@ from lib.inspector import QMLInspector
 from pydantic import BaseModel, Field
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
     title="QML Inspector API",
     description="REST API for inspecting and interacting with QML applications",
     version="1.0.0",
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 inspector = None
 
