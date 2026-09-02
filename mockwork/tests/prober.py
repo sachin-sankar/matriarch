@@ -67,7 +67,20 @@ def post_interact(cuid, action, app_name=None, value=None):
             detail = str(e)
         return {"ok": False, "status": e.response.status_code, "detail": detail}
     except requests.RequestException as e:
-        return {"ok": False, "error": str(e)}
+def prober():
+    windows_resp = fetch_windows()
+    if "_error" in windows_resp:
+        print(f"Failed to fetch /windows: {windows_resp['_error']}")
+        sys.exit(1)
+
+    # Handle both old (dict) and new (WindowsResponse) formats
+    if isinstance(windows_resp, dict) and "windows" in windows_resp:
+        windows = windows_resp["windows"]
+    elif isinstance(windows_resp, dict):
+        windows = windows_resp
+    else:
+        print("Unexpected /windows response format")
+        sys.exit(1)
 
 
 def collect_interactors(node, out=None):
@@ -110,7 +123,9 @@ def probe_app(app_name, windows):
     for interactor in interactors:
         cuid = interactor["cuid"]
         role = interactor["role"]
-        label = interactor.get("label") or interactor.get("id") or "unnamed"
+    print(f"\nFound {len(windows)} app(s): {', '.join(windows.keys())}\n")
+
+    for app_name in windows:
         actions = ACTION_MAP.get(role, [])
 
         if not actions:
