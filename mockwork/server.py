@@ -78,6 +78,13 @@ class ErrorResponse(BaseModel):
     detail: str
 
 
+@app.get("/raw", response_description="Raw QML inspection tree without processing")
+def get_raw():
+    if inspector is None:
+        raise HTTPException(status_code=500, detail="Inspector not initialized")
+    return inspector.get_layout_safe()
+
+
 @app.get(
     "/layout",
     response_description="Returns the QML application UI tree with component metadata",
