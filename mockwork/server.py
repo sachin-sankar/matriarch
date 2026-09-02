@@ -82,7 +82,26 @@ class InteractResponse(BaseModel):
     cuid: str
 
 
+class WindowInfo(BaseModel):
+    """Information about a loaded QML app window."""
+
+    name: str
+    qml_path: str
+    alive: bool
+    error: Optional[str] = None
+
+
+class WindowsResponse(BaseModel):
+    """Response body for the /windows endpoint."""
+
+    windows: dict[str, WindowInfo]
+    total: int
+
+
 class ErrorResponse(BaseModel):
+    """Error response model."""
+
+    detail: str
     """Error response model."""
 
     detail: str
@@ -98,7 +117,26 @@ def _get_app(req: Request) -> Optional[App]:
     return None
 
 
-@app.get("/windows", response_description="List all loaded QML apps")
+@app.get(
+    "/windows",
+    response_model=WindowsResponse,
+    response_description="List all loaded QML apps",
+)
+def get_windows():
+    return WindowsResponse(
+        windows={
+            name: WindowInfo(
+                name=name,
+                qml_path=a.qml_path,
+                alive=a.is_alive(),
+                error=a._error,
+            )
+            for name, a in apps.items()
+        },
+        total=len(apps),
+    )
+
+
 def get_windows():
     return {
         name: {
