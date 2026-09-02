@@ -1,16 +1,14 @@
 import argparse
-import sys
 import os
+import sys
 import threading
 from enum import Enum
-from typing import Optional
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
+from lib.inspector import QMLInspector
 from pydantic import BaseModel, Field
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
-from lib.inspector import QMLInspector
 
 app = FastAPI(
     title="QML Inspector API",
@@ -56,7 +54,7 @@ class InteractRequest(BaseModel):
     action: InteractionAction = Field(
         ..., description="Action to perform on the component"
     )
-    value: Optional[str] = Field(None, description="Value for fill/select actions")
+    value: str | None = Field(None, description="Value for fill/select actions")
 
 
 class InteractResponse(BaseModel):

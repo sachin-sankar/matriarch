@@ -2,6 +2,7 @@ import math
 import re
 import threading
 import uuid
+
 from PySide6.QtCore import QObject, Signal, Slot
 
 
@@ -95,13 +96,12 @@ class QMLInspector(QObject):
 
         for i in range(meta.propertyCount()):
             prop = meta.property(i)
-            name = prop.name()
+            name = str(prop.name())
             try:
                 raw_val = item.property(name)
                 properties[name] = safe_json_value(raw_val)
             except Exception:
                 pass
-
         role_map = {
             "TextField": "text_input",
             "TextArea": "text_area",
