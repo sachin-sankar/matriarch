@@ -23,7 +23,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-mcp = FastApiMCP(app, describe_all_responses=True)
+mcp = FastApiMCP(app, describe_all_responses=True, describe_full_response_schema=True)
 
 # Global registry of loaded apps
 apps: dict[str, App] = {}
@@ -115,6 +115,7 @@ def _get_app(app_name: str | None = None) -> App | None:
     "/windows",
     response_model=WindowsResponse,
     response_description="List all loaded QML apps",
+    operation_id="get_windows",
 )
 def get_windows():
     return WindowsResponse(
@@ -131,7 +132,11 @@ def get_windows():
     )
 
 
-@app.get("/raw", response_description="Raw QML inspection tree without processing")
+@app.get(
+    "/raw",
+    response_description="Raw QML inspection tree without processing",
+    operation_id="get_raw",
+)
 def get_raw(
     app: str | None = Query(None, description="App name to inspect"),
 ):
@@ -147,6 +152,7 @@ def get_raw(
 @app.get(
     "/layout",
     response_description="Returns the QML application UI tree with component metadata",
+    operation_id="get_layout",
 )
 def get_layout(
     app: str | None = Query(None, description="App name to inspect"),
@@ -245,6 +251,7 @@ def get_layout(
     },
     summary="Interact with a QML component",
     description="Perform an action on a QML component identified by its CUID",
+    operation_id="interact",
 )
 def interact(
     req: InteractRequest,
@@ -267,7 +274,7 @@ def interact(
     )
 
 
-mcp.mount()
+mcp.mount_http()
 mcp.setup_server()
 
 
