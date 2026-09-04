@@ -23,7 +23,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-mcp = FastApiMCP(app, describe_all_responses=True, describe_full_response_schema=True)
+mcp = FastApiMCP(
+    app,
+    describe_all_responses=True,
+    describe_full_response_schema=True,
+    include_operations=["get_windows", "get_layout", "interact"],
+)
 
 # Global registry of loaded apps
 apps: dict[str, App] = {}
