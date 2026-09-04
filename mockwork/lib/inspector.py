@@ -1,7 +1,6 @@
 import math
 import re
 import threading
-from typing import Optional
 
 from PySide6.QtCore import QObject, Signal, Slot
 from PySide6.QtQml import QQmlApplicationEngine
@@ -57,14 +56,12 @@ class QMLInspector(QObject):
             meta = obj.metaObject()
             class_name = meta.className()
 
-            if class_name.startswith("TextField") and action == "fill":
-                obj.setProperty("text", str(value))
-                self._result = {
-                    "success": True,
-                    "action": "fill",
-                    "cuid": self._get_cuid(obj),
-                }
-            elif class_name.startswith("TextArea") and action == "fill":
+            if (
+                class_name.startswith("TextField")
+                and action == "fill"
+                or class_name.startswith("TextArea")
+                and action == "fill"
+            ):
                 obj.setProperty("text", str(value))
                 self._result = {
                     "success": True,
@@ -78,14 +75,12 @@ class QMLInspector(QObject):
                     "action": "click",
                     "cuid": self._get_cuid(obj),
                 }
-            elif class_name.startswith("CheckBox") and action in ("click", "toggle"):
-                obj.click()
-                self._result = {
-                    "success": True,
-                    "action": action,
-                    "cuid": self._get_cuid(obj),
-                }
-            elif class_name.startswith("Switch") and action in ("click", "toggle"):
+            elif (
+                class_name.startswith("CheckBox")
+                and action in ("click", "toggle")
+                or class_name.startswith("Switch")
+                and action in ("click", "toggle")
+            ):
                 obj.click()
                 self._result = {
                     "success": True,
@@ -100,7 +95,7 @@ class QMLInspector(QObject):
                         "action": "select",
                         "cuid": self._get_cuid(obj),
                     }
-                except (ValueError, TypeError) as e:
+                except ValueError, TypeError:
                     self._result = {"error": f"Invalid index: {value}"}
             elif class_name.startswith(("TextField", "TextArea")) and action == "focus":
                 obj.forceActiveFocus()
@@ -215,11 +210,11 @@ class App:
     def __init__(self, name: str, qml_path: str):
         self.name = name
         self.qml_path = qml_path
-        self.qt_app: Optional[QObject] = None  # Will be set on main thread
-        self.engine: Optional[QQmlApplicationEngine] = None
-        self.inspector: Optional[QMLInspector] = None
+        self.qt_app: QObject | None = None  # Will be set on main thread
+        self.engine: QQmlApplicationEngine | None = None
+        self.inspector: QMLInspector | None = None
         self._loaded = threading.Event()
-        self._error: Optional[str] = None
+        self._error: str | None = None
 
     def load(self) -> bool:
         """Load the QML app. Must be called from main thread."""

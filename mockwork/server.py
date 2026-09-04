@@ -3,15 +3,13 @@ import os
 import sys
 import threading
 from enum import Enum
-from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_mcp import FastApiMCP
 from lib.inspector import App
 from pydantic import BaseModel, Field
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtQml import QQmlApplicationEngine
 
 app = FastAPI(
     title="QML Inspector API",
@@ -66,12 +64,12 @@ class InteractionAction(str, Enum):
 class InteractRequest(BaseModel):
     """Request body for the /interact endpoint."""
 
-    app: Optional[str] = Field(None, description="App name (defaults to first app)")
+    app: str | None = Field(None, description="App name (defaults to first app)")
     cuid: str = Field(..., description="Component unique identifier from /layout")
     action: InteractionAction = Field(
         ..., description="Action to perform on the component"
     )
-    value: Optional[str] = Field(None, description="Value for fill/select actions")
+    value: str | None = Field(None, description="Value for fill/select actions")
 
 
 class InteractResponse(BaseModel):
@@ -88,7 +86,7 @@ class WindowInfo(BaseModel):
     name: str
     qml_path: str
     alive: bool
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class WindowsResponse(BaseModel):
@@ -104,7 +102,7 @@ class ErrorResponse(BaseModel):
     detail: str
 
 
-def _get_app(app_name: Optional[str] = None) -> Optional[App]:
+def _get_app(app_name: str | None = None) -> App | None:
     """Get the requested app or default to first."""
     if app_name:
         return apps.get(app_name)
@@ -135,7 +133,7 @@ def get_windows():
 
 @app.get("/raw", response_description="Raw QML inspection tree without processing")
 def get_raw(
-    app: Optional[str] = Query(None, description="App name to inspect"),
+    app: str | None = Query(None, description="App name to inspect"),
 ):
     a = _get_app(app)
     if a is None:
@@ -151,7 +149,7 @@ def get_raw(
     response_description="Returns the QML application UI tree with component metadata",
 )
 def get_layout(
-    app: Optional[str] = Query(None, description="App name to inspect"),
+    app: str | None = Query(None, description="App name to inspect"),
 ):
     a = _get_app(app)
     if a is None:
@@ -250,7 +248,7 @@ def get_layout(
 )
 def interact(
     req: InteractRequest,
-    app: Optional[str] = Query(None, description="App name to interact with"),
+    app: str | None = Query(None, description="App name to interact with"),
 ):
     # Use query param if provided, otherwise fall back to request body
     target_app = app or req.app
