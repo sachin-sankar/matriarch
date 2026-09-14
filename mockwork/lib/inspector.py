@@ -45,7 +45,7 @@ class QMLInspector(QObject):
             else:
                 root_window = self.engine.rootObjects()[0]
                 self._result = self._serialize_qml_item(root_window)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self._result = {"error": str(e)}
         finally:
             self._event.set()
@@ -113,7 +113,7 @@ class QMLInspector(QObject):
                 }
             else:
                 self._result = {"error": f"No handler for {class_name}/{action}"}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self._result = {"error": str(e)}
         finally:
             self._event.set()
@@ -145,7 +145,7 @@ class QMLInspector(QObject):
             try:
                 raw_val = item.property(name)
                 properties[name] = safe_json_value(raw_val)
-            except Exception:
+            except Exception:  # noqa: BLE001, S110
                 pass
         role_map = {
             "TextField": "text_input",
@@ -174,7 +174,7 @@ class QMLInspector(QObject):
                     "w": properties.get("width", 0),
                     "h": properties.get("height", 0),
                 }
-            except Exception:
+            except Exception:  # noqa: BLE001, S110
                 pass
 
         match = re.search(r"0x[0-9a-fA-F]+", str(item))
@@ -231,7 +231,7 @@ class App:
             self.inspector = QMLInspector(self.engine)
             self._loaded.set()
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self._error = str(e)
             return False
 

@@ -4,7 +4,8 @@
 import json
 import sys
 import time
-from datetime import datetime
+from datetime import UTC, datetime
+from typing import Any
 
 import requests
 
@@ -19,7 +20,7 @@ ACTION_MAP = {
     "dropdown": ["select", "focus"],
 }
 
-REPORT = {
+REPORT: dict[str, Any] = {
     "apps": {},
     "total": 0,
     "success": 0,
@@ -61,11 +62,15 @@ def post_interact(cuid, action, app_name=None, value=None):
         r.raise_for_status()
         return {"ok": True, "status": r.status_code, "body": r.json()}
     except requests.HTTPError as e:
-        try:
-            detail = e.response.json().get("detail", str(e))
-        except Exception:
-            detail = str(e)
-        return {"ok": False, "status": e.response.status_code, "detail": detail}
+        detail = str(e)
+        status_code = None
+        if e.response is not None:
+            status_code = e.response.status_code
+            try:
+                detail = e.response.json().get("detail", str(e))
+            except Exception:  # noqa: BLE001, S110
+                pass
+        return {"ok": False, "status": status_code, "detail": detail}
     except requests.RequestException as e:
         return {"ok": False, "error": str(e)}
 
@@ -187,7 +192,7 @@ def prober():
         f"Results: {REPORT['success']}/{REPORT['total']} OK, {REPORT['errors']} errors"
     )
 
-    now = datetime.now().strftime("%Y%m%d-%H%M%S")
+    now = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     report_file = f"prober-report-{now}.json"
     with open(report_file, "w") as f:
         json.dump(REPORT, f, indent=2, default=str)
