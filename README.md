@@ -8,6 +8,8 @@ Headless & live inspection, accessibility tree extraction, and programmatic UI i
 
 Matriarch bridges live QML scene graphs running in PySide6 to external agentic toolkits and testing harnesses via FastAPI and FastApiMCP.
 
+https://github.com/user-attachments/assets/76e158cb-19c3-4455-a206-7033b2383b74
+
 ---
 
 ## Features
