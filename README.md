@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="banner.svg" alt="Matriarch Banner" width="100%" />
+</p>
+
 # Matriarch
 
 Headless & live inspection, accessibility tree extraction, and programmatic UI interaction runtime for Qt Quick / QML applications via REST and Model Context Protocol (MCP).
