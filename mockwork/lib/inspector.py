@@ -208,8 +208,10 @@ class App:
     """Manages a single QML app instance with its inspector."""
 
     def __init__(self, name: str, qml_path: str):
+        import os
+
         self.name = name
-        self.qml_path = qml_path
+        self.qml_path = os.path.abspath(os.path.expanduser(qml_path))
         self.qt_app: QObject | None = None  # Will be set on main thread
         self.engine: QQmlApplicationEngine | None = None
         self.inspector: QMLInspector | None = None

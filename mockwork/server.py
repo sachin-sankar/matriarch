@@ -306,7 +306,7 @@ if __name__ == "__main__":
         app_name = os.path.basename(qml_file).replace(".qml", "")
         if i > 0:
             app_name = f"{app_name}_{i}"
-        qml_path = os.path.abspath(qml_file)
+        qml_path = os.path.abspath(os.path.expanduser(qml_file))
 
         a = App(app_name, qml_path)
         if a.load():

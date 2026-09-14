@@ -63,7 +63,7 @@ ApplicationWindow {
                 TextField {
                     id: pathInput
                     objectName: "pathInput"
-                    text: "/home/sachin"
+                    text: "~"
                     Layout.fillWidth: true
                 }
 
